@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="module" src="../../dist/wanix.js"></script>
+    <style>
+        body { margin: 0; height: 100vh; background: #000; }
+        wanix-system { display: block; height: 100%; }
+        wanix-term { height: 100%; }
+    </style>
+</head>
+<body>
+
+    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+        <wanix-bind dst="." src="#ramfs"></wanix-bind>
+
+        <!-- fetch bubbletea wasm into the namespace -->
+        <wanix-bind type="fetch" dst="bubbletea.wasm" src="bubbletea.wasm"></wanix-bind>
+
+        <!-- run bubbletea as gojs task with TERM_WINCH pointing to term's winch file -->
+        <wanix-task id="counter" type="gojs" cmd="bubbletea.wasm" start term
+                    env="TERM_WINCH=winch">
+            <wanix-bind dst="winch" src="#task/self/term/winch"></wanix-bind>
+        </wanix-task>
+
+        <!-- render terminal connected to the task's term -->
+        <wanix-term path="#task/counter/term" raw></wanix-term>
+    </wanix-system>
+
+</body>
+</html>
