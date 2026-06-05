@@ -48,6 +48,7 @@ export class TaskElement extends WanixElement {
         this.root = this._system.openHandle(this.rid);
 
         await this._system.root.writeFile([this.path, "cmd"].join("/"), this.cmd);
+
         if (this.env) {
             await this._system.root.writeFile([this.path, "env"].join("/"), this.env);
         }
@@ -102,6 +103,7 @@ if (typeof window !== "undefined") {
 }
 
 function spaceToNewline(input) {
+    if (!input) return '';
     const tokens = [];
     let current = '';
     let inQuotes = false;
