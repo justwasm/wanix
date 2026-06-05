@@ -102,6 +102,8 @@ export class TerminalElement extends WanixElement {
                 }
             }
         });
+
+        this.focus();
     }
 
     async connect() {
@@ -204,6 +206,9 @@ export class TerminalElement extends WanixElement {
         }
         if (this.hasAttribute("scrollback")) {
             options.scrollback = parseInt(this.getAttribute("scrollback"), 10);
+        }
+        if (this.hasAttribute("no-scrollbar")) {
+            options.scrollbar = { showScrollbar: false };
         }
 
         return options;
