@@ -43,8 +43,12 @@ export class TerminalElement extends WanixElement {
         this._term.open(this);
 
         this._fitAddon.fit();
+        this.dataset.cols = this._term.cols;
+        this.dataset.rows = this._term.rows;
         this.#resizeObserver = new ResizeObserver(() => {
             this._fitAddon.fit();
+            this.dataset.cols = this._term.cols;
+            this.dataset.rows = this._term.rows;
         });
         this.#resizeObserver.observe(this);
         // this._resizeObserver.observe(this.parentElement);
@@ -53,6 +57,10 @@ export class TerminalElement extends WanixElement {
         this.style.display = "flex";
         this.style.flexDirection = "column";
         this.style.height = "100%";
+
+        // expose initial dimensions for task env setup
+        this.dataset.cols = this._term.cols;
+        this.dataset.rows = this._term.rows;
     }
     
 
@@ -73,6 +81,27 @@ export class TerminalElement extends WanixElement {
 
     _awake() {
         this.connect();
+
+        // send initial terminal size
+        this._system.root.openWritable(this.path + "/winch").then(w => {
+            const writer = w.getWriter();
+            writer.write(new TextEncoder().encode(`${this._term.cols} ${this._term.rows}\n`));
+            writer.close();
+        }).catch(() => {});
+
+        // forward terminal resize to winch file
+        this._term.onResize(async ({ cols, rows }) => {
+            if (this._system && this.path) {
+                try {
+                    const w = await this._system.root.openWritable(this.path + "/winch");
+                    const writer = w.getWriter();
+                    await writer.write(new TextEncoder().encode(`${cols} ${rows}\n`));
+                    writer.close();
+                } catch (err) {
+                    console.error("wanix-term: winch write failed:", err);
+                }
+            }
+        });
     }
 
     async connect() {
