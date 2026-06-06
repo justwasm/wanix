@@ -226,6 +226,20 @@ func main() {
 						log.Println("error reading fetch", err)
 						return
 					}
+					// Special case: "dev/null" should be a discard/EOF device, not a regular file.
+					// Mounting a memfs with a null node lets writes succeed and reads return EOF.
+					if dst == "dev/null" {
+						nullfs := memfs.New()
+						if _, err := nullfs.Create("null"); err != nil {
+							log.Println("error creating null device", err)
+							return
+						}
+						if err := task.NS().Bind(nullfs, "null", dst); err != nil {
+							log.Println("error binding null device", err)
+							return
+						}
+						break
+					}
 					if err := fs.WriteFile(task.NS(), dst, buf, mode); err != nil {
 						log.Fatalf("error writing file %s: %v", dst, err)
 					}
@@ -261,6 +275,14 @@ func main() {
 					reject.Invoke(fmt.Errorf("unknown binding type %q", typ))
 				}
 			}
+			// Ensure /tmp exists for Go toolchain and other programs.
+			// Only do this for tasks with a writable namespace (non-root).
+			if taskID != "1" {
+				if err := fs.MkdirAll(task.NS(), "tmp", 0777); err != nil {
+					log.Println("error creating tmp:", err)
+				}
+			}
+
 			resolve.Invoke(js.Undefined())
 		}()
 		return promise

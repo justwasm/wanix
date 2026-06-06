@@ -13,7 +13,7 @@ toolchain:
 		GOOS=js GOARCH=wasm GOROOT=$(GOROOT) $(GO) build -o toolchain/pkg/tool/js_wasm/$$tool cmd/$$tool; \
 	done
 	(cd $(GOROOT)/src && find . -maxdepth 1 -type d ! -name 'cmd' ! -name 'test' ! -name '.*' \
-		-exec cp -a $(GOROOT)/src/{} toolchain/src/ \;)
+		-exec cp -a $(GOROOT)/src/{} $(CURDIR)/toolchain/src/ \;)
 	cp $(GOROOT)/lib/wasm/wasm_exec.js toolchain/lib/wasm/
 	tar czf go-toolchain.tar.gz --exclude='testdata' --exclude='*_test.go' -C toolchain .
 	ls -lah go-toolchain.tar.gz
