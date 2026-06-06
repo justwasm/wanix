@@ -384,7 +384,7 @@ func (d *TaskFS) Alloc(kind string, parent *Task) (*Task, error) {
 		id:     d.nextID,
 		kind:   kind,
 		fds:    make(map[int]*openFile),
-		fdIdx:  3,
+		fdIdx:  -1,
 	}
 	ctx := context.WithValue(context.Background(), TaskContextKey, p)
 	if parent != nil {
