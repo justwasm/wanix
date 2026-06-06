@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8"/>
-    <title>Wanix Go Toolchain Demo</title>
+    <title>Wanix Go Build Demo</title>
     <script type="module" src="../../dist/wanix.min.js"></script>
     <style>
         body { margin: 0; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; }
@@ -14,21 +14,32 @@
 </head>
 <body>
     <div class="header">
-        <h1>Wanix Go Toolchain Demo</h1>
-        <p>Running <code>go.wasm</code> in a gojs worker</p>
+        <h1>Wanix Go Build Demo</h1>
+        <p>Full pipeline: write source → compile → run, all in gojs workers</p>
     </div>
 
     <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
-        <!-- Mount the Go toolchain tarball -->
-        <wanix-bind type="archive" dst="go-toolchain" src="./go-toolchain.tar.gz"></wanix-bind>
 
-        <!-- Fetch parent WASM binary -->
-        <wanix-bind type="fetch" dst="parent.wasm" src="./parent.wasm"></wanix-bind>
+        <wanix-task id="build" cmd="parent.wasm" type="gojs" term start>
 
-        <!-- Build parent.wasm with GOROOT pointing to mounted toolchain -->
-        <wanix-task id="demo" cmd="parent.wasm" type="gojs" term start></wanix-task>
+            <!-- System namespace bindings -->
+            <wanix-bind dst="task" src="#task"></wanix-bind>
 
-        <wanix-term id="terminal" path="#task/demo/term"></wanix-term>
+            <!-- Go toolchain: binaries + stdlib + tools -->
+            <wanix-bind type="archive" dst="go-toolchain" src="./go-toolchain.tar.gz"></wanix-bind>
+
+            <!-- Writable workspace for source + compiled output -->
+            <wanix-bind dst="." src="#ramfs"></wanix-bind>
+
+            <!-- /dev/null: empty file, reads return EOF, writes discarded -->
+            <wanix-bind type="file" dst="dev/null"></wanix-bind>
+
+            <!-- The parent WASM binary -->
+            <wanix-bind type="fetch" dst="parent.wasm" src="./parent.wasm"></wanix-bind>
+
+        </wanix-task>
+
+        <wanix-term path="#task/build/term"></wanix-term>
     </wanix-system>
 </body>
 </html>
