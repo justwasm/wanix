@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>wanix — exec demo</title>
+    <script type="module" src="../../dist/wanix.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css">
+    <style>
+        body { margin: 0; height: 100vh; background: #000; }
+        wanix-system { display: block; height: 100%; }
+        wanix-term { height: 100%; }
+    </style>
+</head>
+<body>
+
+    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+        <wanix-bind dst="." src="#ramfs"></wanix-bind>
+
+        <!-- fetch the exec-demo wasm into the namespace -->
+        <wanix-bind type="fetch" dst="exec-demo.wasm" src="exec-demo.wasm"></wanix-bind>
+
+        <!-- run as gojs task -->
+        <wanix-task id="demo" type="gojs" cmd="exec-demo.wasm" start term>
+        </wanix-task>
+
+        <wanix-term path="#task/demo/term" raw no-scrollbar></wanix-term>
+    </wanix-system>
+
+</body>
+</html>
