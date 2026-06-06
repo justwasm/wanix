@@ -19,75 +19,80 @@ func main() {
 
 func child() {
 	fmt.Println("👋 Hello from child process!")
-	fmt.Println("I'm running in my own Web Worker via os/exec-like spawning.")
+	fmt.Println("Reading a line from stdin (type something and press Enter):")
+	var line string
+	fmt.Scanln(&line)
+	fmt.Printf("Child got: %q\n", line)
 	os.Exit(42)
 }
 
 func parent() {
 	fmt.Println("=== Go WASM exec demo ===")
-	fmt.Println("Parent: spawning child...")
+	fmt.Println("Parent: spawning child task...")
 
-	// 1. Allocate a new gojs task (this creates a new Web Worker)
-	taskID, err := readFile(strings.TrimSpace, "#task/new/gojs")
-	if err != nil {
-		fmt.Printf("Parent: allocation failed: %v\n", err)
-		os.Exit(1)
-	}
+	// 1. Allocate a new gojs task — returns e.g. "3"
+	taskID := readStr("#task/new/gojs")
 	taskPath := filepath.Join("#task", taskID)
 
-	// 2. Set the command — spawn the same WASM binary with --child flag
-	//    The binary path is os.Args[0], which the GoJS worker resolves
-	childArg := os.Args[0] + " --child"
-	if err := os.WriteFile(filepath.Join(taskPath, "cmd"), []byte(childArg), 0644); err != nil {
-		fmt.Printf("Parent: write cmd failed: %v\n", err)
-		os.Exit(1)
-	}
+	// 2. Set command via ctl — writeTask writes the cmd to the child's files
+	writeTask(filepath.Join(taskPath, "cmd"), os.Args[0]+" --child")
+	writeTask(filepath.Join(taskPath, "env"), "HELLO=from_parent")
 
-	// 3. Bind child's fds to our own term (shares the terminal)
+	// 3. Bind child's fds to our term so child can output here
 	ctl := fmt.Sprintf("bind self/term/program %s/fd/0\n", taskPath)
 	ctl += fmt.Sprintf("bind self/term/program %s/fd/1\n", taskPath)
 	ctl += fmt.Sprintf("bind self/term/program %s/fd/2\n", taskPath)
-	if err := os.WriteFile(filepath.Join(taskPath, "ctl"), []byte(ctl), 0644); err != nil {
-		fmt.Printf("Parent: bind fds failed: %v\n", err)
-		os.Exit(1)
-	}
+	writeTask(filepath.Join(taskPath, "ctl"), ctl)
 
-	// 4. Start the child
-	if err := os.WriteFile(filepath.Join(taskPath, "ctl"), []byte("start"), 0644); err != nil {
-		fmt.Printf("Parent: start failed: %v\n", err)
-		os.Exit(1)
-	}
+	// 4. Start child
+	writeTask(filepath.Join(taskPath, "ctl"), "start")
 
-	// 5. Wait for child to exit (poll #task/<id>/exit)
-	exitCode, err := waitExitCode(taskPath)
-	if err != nil {
-		fmt.Printf("Parent: wait failed: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println("Parent: waiting for child to exit...")
 
-	fmt.Printf("\n✅ Child exited with code %d\n", exitCode)
+	// 5. Poll exit file
+	code := waitExit(filepath.Join(taskPath, "exit"))
+	fmt.Printf("\n✅ Child exited with code %d\n", code)
 }
 
-func waitExitCode(taskPath string) (int, error) {
-	exitPath := filepath.Join(taskPath, "exit")
+func readStr(path string) string {
+	out, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("FATAL: read %s: %v\n", path, err)
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func writeTask(path, data string) {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Printf("FATAL: open %s: %v\n", path, err)
+		os.Exit(1)
+	}
+	defer f.Close()
+	if _, err := f.Write([]byte(data)); err != nil {
+		fmt.Printf("FATAL: write %s: %v\n", path, err)
+		os.Exit(1)
+	}
+}
+
+func waitExit(path string) int {
 	for {
-		out, err := os.ReadFile(exitPath)
+		out, err := os.ReadFile(path)
 		if err != nil {
-			return 1, err
+			fmt.Printf("FATAL: read exit: %v\n", err)
+			os.Exit(1)
 		}
 		s := strings.TrimSpace(string(out))
 		if s == "" {
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
-		return strconv.Atoi(s)
+		code, err := strconv.Atoi(s)
+		if err != nil {
+			fmt.Printf("FATAL: bad exit code %q: %v\n", s, err)
+			os.Exit(1)
+		}
+		return code
 	}
-}
-
-func readFile(fn func(string) string, path string) (string, error) {
-	out, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return fn(string(out)), nil
 }
