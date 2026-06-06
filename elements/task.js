@@ -56,7 +56,7 @@ export class TaskElement extends WanixElement {
             const termEl = Array.from(document.querySelectorAll('wanix-term'))
                 .find(el => el.getAttribute('path') === termPath);
             if (termEl && termEl.dataset.cols && termEl.dataset.rows) {
-                const suffix = `WANIX_COLS=${termEl.dataset.cols}\nWANIX_ROWS=${termEl.dataset.rows}`;
+                const suffix = `WANIX_ROWS=${termEl.dataset.rows}\nWANIX_COLS=${termEl.dataset.cols}\nWANIX_XPIXEL=${termEl.dataset.xpixel || 0}\nWANIX_YPIXEL=${termEl.dataset.ypixel || 0}`;
                 this.env = (this.env ? this.env + "\n" : "") + suffix;
             }
         }

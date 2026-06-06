@@ -14,7 +14,8 @@ const suspendSupported = false
 func suspendProcess() {}
 
 // initInput reads initial terminal dimensions from WANIX_COLS/WANIX_ROWS
-// env vars (set by the wanix-term element), falling back to 80×24.
+// (and optional WANIX_XPIXEL/WANIX_YPIXEL) env vars set by the wanix-term
+// element from dataset.cols/rows/xpixel/ypixel, falling back to 80×24.
 func (p *Program) initInput() error {
 	if p.width == 0 {
 		if c := os.Getenv("WANIX_COLS"); c != "" {

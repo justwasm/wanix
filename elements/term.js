@@ -45,10 +45,14 @@ export class TerminalElement extends WanixElement {
         this._fitAddon.fit();
         this.dataset.cols = this._term.cols;
         this.dataset.rows = this._term.rows;
+        this.dataset.xpixel = this.offsetWidth;
+        this.dataset.ypixel = this.offsetHeight;
         this.#resizeObserver = new ResizeObserver(() => {
             this._fitAddon.fit();
             this.dataset.cols = this._term.cols;
             this.dataset.rows = this._term.rows;
+            this.dataset.xpixel = this.offsetWidth;
+            this.dataset.ypixel = this.offsetHeight;
         });
         this.#resizeObserver.observe(this);
         // this._resizeObserver.observe(this.parentElement);
@@ -61,6 +65,8 @@ export class TerminalElement extends WanixElement {
         // expose initial dimensions for task env setup
         this.dataset.cols = this._term.cols;
         this.dataset.rows = this._term.rows;
+        this.dataset.xpixel = this.offsetWidth;
+        this.dataset.ypixel = this.offsetHeight;
     }
     
 
@@ -82,10 +88,10 @@ export class TerminalElement extends WanixElement {
     _awake() {
         this.connect();
 
-        // send initial terminal size
+        // send initial terminal size (cols rows xpixel ypixel)
         this._system.root.openWritable(this.path + "/winch").then(w => {
             const writer = w.getWriter();
-            writer.write(new TextEncoder().encode(`${this._term.cols} ${this._term.rows}\n`));
+            writer.write(new TextEncoder().encode(`${this._term.cols} ${this._term.rows} ${this.offsetWidth} ${this.offsetHeight}\n`));
             writer.close();
         }).catch(() => {});
 
@@ -95,7 +101,7 @@ export class TerminalElement extends WanixElement {
                 try {
                     const w = await this._system.root.openWritable(this.path + "/winch");
                     const writer = w.getWriter();
-                    await writer.write(new TextEncoder().encode(`${cols} ${rows}\n`));
+                    await writer.write(new TextEncoder().encode(`${cols} ${rows} ${this.offsetWidth} ${this.offsetHeight}\n`));
                     writer.close();
                 } catch (err) {
                     console.error("wanix-term: winch write failed:", err);

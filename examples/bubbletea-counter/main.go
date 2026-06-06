@@ -10,9 +10,16 @@ import (
 )
 
 type model struct {
-	count  int
-	width  int
-	height int
+	count   int
+	width   int
+	height  int
+	xpixel  int
+	ypixel  int
+}
+
+type xyMsg struct {
+	xpixel int
+	ypixel int
 }
 
 func (m model) Init() tea.Cmd {
@@ -33,6 +40,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case xyMsg:
+		m.xpixel = msg.xpixel
+		m.ypixel = msg.ypixel
 	}
 	return m, nil
 }
@@ -46,12 +56,15 @@ func (m model) View() tea.View {
 		Content: fmt.Sprintf(`
 Bubbletea in wanix!
 
-Count: %d  (size: %dx%d)
+Count: %d
+
+chars: %dx%d
+pixels: %dx%d
 
 ↑/k: increment
 ↓/j: decrement
  q:   quit
-`, m.count, m.width, m.height),
+`, m.count, m.width, m.height, m.xpixel, m.ypixel),
 		AltScreen: true,
 	}
 }
@@ -63,8 +76,10 @@ func main() {
 	// read initial terminal dimensions from env (set by task.js from term element)
 	initCols, _ := strconv.Atoi(os.Getenv("WANIX_COLS"))
 	initRows, _ := strconv.Atoi(os.Getenv("WANIX_ROWS"))
+	initXpixel, _ := strconv.Atoi(os.Getenv("WANIX_XPIXEL"))
+	initYpixel, _ := strconv.Atoi(os.Getenv("WANIX_YPIXEL"))
 
-	p := tea.NewProgram(model{width: initCols, height: initRows},
+	p := tea.NewProgram(model{width: initCols, height: initRows, xpixel: initXpixel, ypixel: initYpixel},
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(os.Stdout),
 	)
@@ -91,6 +106,11 @@ func main() {
 					if cols > 0 && rows > 0 {
 						p.Send(tea.WindowSizeMsg{Width: cols, Height: rows})
 					}
+				}
+				if len(parts) >= 4 {
+					xpixel, _ := strconv.Atoi(parts[2])
+					ypixel, _ := strconv.Atoi(parts[3])
+					p.Send(xyMsg{xpixel: xpixel, ypixel: ypixel})
 				}
 			}
 		}()
