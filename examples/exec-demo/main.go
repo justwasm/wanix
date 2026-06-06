@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,11 +20,17 @@ func main() {
 
 func child() {
 	fmt.Println("👋 Hello from child process!")
-	fmt.Println("Reading a line from stdin (type something and press Enter):")
-	var line string
-	fmt.Scanln(&line)
-	fmt.Printf("Child got: %q\n", line)
-	os.Exit(42)
+	fmt.Println("I'll echo anything you type. Send 'exit' or Ctrl+D to quit.")
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "exit" {
+			break
+		}
+		fmt.Println("echo:", line)
+	}
+	fmt.Println("Child exiting.")
+	os.Exit(0)
 }
 
 func parent() {
@@ -38,11 +45,17 @@ func parent() {
 	writeTask(filepath.Join(taskPath, "cmd"), os.Args[0]+" --child")
 	writeTask(filepath.Join(taskPath, "env"), "HELLO=from_parent")
 
-	// 3. Bind child's fds to our term so child can output here
-	ctl := fmt.Sprintf("bind self/term/program %s/fd/0\n", taskPath)
-	ctl += fmt.Sprintf("bind self/term/program %s/fd/1\n", taskPath)
-	ctl += fmt.Sprintf("bind self/term/program %s/fd/2\n", taskPath)
-	writeTask(filepath.Join(taskPath, "ctl"), ctl)
+	// 3. Find our own term path to share with child
+	myID := readStr("#task/self/id")
+	myTermProg := fmt.Sprintf("#task/%s/term/program", myID)
+
+	// ctl processes ONE command per open/write/close cycle
+	writeTask(filepath.Join(taskPath, "ctl"),
+		fmt.Sprintf("bind %s %s/fd/0", myTermProg, taskPath))
+	writeTask(filepath.Join(taskPath, "ctl"),
+		fmt.Sprintf("bind %s %s/fd/1", myTermProg, taskPath))
+	writeTask(filepath.Join(taskPath, "ctl"),
+		fmt.Sprintf("bind %s %s/fd/2", myTermProg, taskPath))
 
 	// 4. Start child
 	writeTask(filepath.Join(taskPath, "ctl"), "start")
