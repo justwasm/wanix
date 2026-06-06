@@ -264,6 +264,16 @@ func toStringMap(v any) map[string]any {
 			res[fmt.Sprint(k)] = val
 		}
 		return res
+	case []any:
+		// Array of "KEY=VALUE" strings from Go's attr.Env
+		res := make(map[string]any, len(m))
+		for _, item := range m {
+			s := toString(item)
+			if idx := strings.Index(s, "="); idx >= 0 {
+				res[s[:idx]] = s[idx+1:]
+			}
+		}
+		return res
 	default:
 		return nil
 	}

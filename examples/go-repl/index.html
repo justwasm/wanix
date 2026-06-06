@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Wanix Go Toolchain Demo</title>
+    <script type="module" src="../../dist/wanix.min.js"></script>
+    <style>
+        body { margin: 0; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; }
+        .header { padding: 16px 24px; background: #16213e; border-bottom: 1px solid #0f3460; }
+        .header h1 { margin: 0; font-size: 18px; color: #e94560; }
+        .header p { margin: 4px 0 0; font-size: 13px; color: #888; }
+        #terminal { height: calc(100vh - 80px); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Wanix Go Toolchain Demo</h1>
+        <p>Running <code>go.wasm</code> in a gojs worker</p>
+    </div>
+
+    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+        <!-- Mount the Go toolchain tarball -->
+        <wanix-bind type="archive" dst="go-toolchain" src="./go-toolchain.tar.gz"></wanix-bind>
+
+        <!-- Fetch parent WASM binary -->
+        <wanix-bind type="fetch" dst="parent.wasm" src="./parent.wasm"></wanix-bind>
+
+        <!-- Build parent.wasm with GOROOT pointing to mounted toolchain -->
+        <wanix-task id="demo" cmd="parent.wasm" type="gojs" term start></wanix-task>
+
+        <wanix-term id="terminal" path="#task/demo/term"></wanix-term>
+    </wanix-system>
+</body>
+</html>
