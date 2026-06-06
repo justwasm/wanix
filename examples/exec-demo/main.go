@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 
@@ -9,16 +10,36 @@ import (
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--child" {
-		fmt.Println("Hello from child process!")
+		child()
 		return
 	}
-	fmt.Println("=== wanix/os/exec demo ===")
+	parent()
+}
+
+func child() {
+	fmt.Println("👋 Hello from child process!")
+	fmt.Println("I'll echo anything you type. Send 'exit' or Ctrl+D to quit.")
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "exit" {
+			break
+		}
+		fmt.Println("echo:", line)
+	}
+	fmt.Println("Child exiting.")
+	os.Exit(0)
+}
+
+func parent() {
+	fmt.Println("=== wanix/os/exec interactive demo ===")
 
 	cmd := exec.Command(os.Args[0], "--child")
-	err := cmd.Run()
-	fmt.Printf("Exit code: %d\n", cmd.ProcessState.ExitCode())
-	if err != nil {
+	cmd.InheritTTY = true
+
+	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Printf("✅ Child exited with code %d\n", cmd.ProcessState.ExitCode())
 }

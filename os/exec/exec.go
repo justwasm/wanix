@@ -29,6 +29,11 @@ type Cmd struct {
 	Stdout io.Writer
 	Stderr io.Writer
 
+	// InheritTTY makes the child share the parent's terminal for stdin/stdout/stderr.
+	// When true, the child's I/O is connected to the parent's term (self/term)
+	// instead of an isolated pipe. This is needed for interactive programs.
+	InheritTTY bool
+
 	Process      *Process
 	ProcessState *ProcessState
 
@@ -103,7 +108,7 @@ func (c *Cmd) Start() error {
 		}
 	}
 
-	// Allocate a term and bind child's fds to it.
+	// Allocate a dedicated term for child I/O.
 	termID := readStr(c.ctx, "#term/new")
 	if termID == "" {
 		return fmt.Errorf("exec: failed to allocate term")
@@ -127,7 +132,88 @@ func (c *Cmd) Start() error {
 		return fmt.Errorf("exec: start: %w", err)
 	}
 
+	// When InheritTTY is set, pipe data between the caller's terminal
+	// and the child's dedicated term via goroutines.
+	if c.InheritTTY {
+		c.startPipes(termPath)
+	}
+
 	return nil
+}
+
+func (c *Cmd) startPipes(termPath string) {
+	if os.Stdout != nil {
+		go func() {
+			f, err := os.Open(termPath + "/data")
+			if err != nil {
+				return
+			}
+			defer f.Close()
+			buf := make([]byte, 4096)
+			for {
+				if isCtxDone(c.ctx) {
+					return
+				}
+				n, err := readWithTimeout(f, buf, 200*time.Millisecond)
+				if n > 0 {
+					os.Stdout.Write(buf[:n])
+				}
+				if err != nil || n == 0 {
+					return
+				}
+			}
+		}()
+	}
+
+	if os.Stdin != nil {
+		go func() {
+			f, err := os.OpenFile(termPath+"/data", os.O_WRONLY, 0)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+			buf := make([]byte, 4096)
+			for {
+				if isCtxDone(c.ctx) {
+					return
+				}
+				n, err := os.Stdin.Read(buf)
+				if n > 0 {
+					f.Write(buf[:n])
+				}
+				if err != nil {
+					return
+				}
+			}
+		}()
+	}
+}
+
+func readWithTimeout(f *os.File, buf []byte, timeout time.Duration) (int, error) {
+	type result struct {
+		n   int
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		n, err := f.Read(buf)
+		ch <- result{n, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.n, r.err
+	case <-time.After(timeout):
+		return 0, nil
+	}
+}
+
+func isCtxDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *Cmd) Wait() error {
