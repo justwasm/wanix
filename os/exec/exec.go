@@ -137,24 +137,23 @@ func (c *Cmd) Start() error {
 		}
 	}
 
-	// 5. Use parent's own term for child I/O — reusing the terminal
-	//    avoids creating a new one via #term/new (which requires DOM).
-	parentID := readStr(c.ctx, "#task/self/id")
-	if parentID == "" {
-		return fmt.Errorf("exec: failed to resolve parent task ID")
+	// 5. Allocate a dedicated terminal for the child
+	termID := readStr(c.ctx, "#term/new")
+	if termID == "" {
+		return fmt.Errorf("exec: failed to allocate term")
 	}
-	parentTerm := filepath.Join("#task", parentID, "term")
+	termPath := filepath.Join("#term", termID)
 
-	// 6. Bind child's fds to parent's term
+	// 6. Bind child's fds to the term's program file
 	for _, fd := range []string{"0", "1", "2"} {
 		if err := appendFile(c.taskPath+"/ctl",
-			fmt.Sprintf("bind %s/program %s/fd/%s", parentTerm, c.taskPath, fd)); err != nil {
+			fmt.Sprintf("bind %s/program %s/fd/%s", termPath, c.taskPath, fd)); err != nil {
 			return fmt.Errorf("exec: bind fd/%s: %w", fd, err)
 		}
 	}
 
-	// 7. Open parent's term data for reading (child output)
-	dataFile, err := os.Open(parentTerm + "/data")
+	// 7. Open term data for reading (child output)
+	dataFile, err := os.Open(termPath + "/data")
 	if err != nil {
 		return fmt.Errorf("exec: open term data: %w", err)
 	}
@@ -187,7 +186,7 @@ func (c *Cmd) Start() error {
 	// Copy c.Stdin → child stdin (write directly to term data)
 	if c.Stdin != nil {
 		go func() {
-			w, err := os.OpenFile(parentTerm+"/data", os.O_WRONLY, 0)
+			w, err := os.OpenFile(termPath+"/data", os.O_WRONLY, 0)
 			if err != nil {
 				return
 			}
@@ -213,7 +212,9 @@ func (c *Cmd) Wait() error {
 		return fmt.Errorf("exec: wait: %w", err)
 	}
 
-	// Close the data file to signal the io.Copy goroutine to stop
+	// Give io.Copy a moment to drain any buffered data from the pipe,
+	// then close the data file to signal the goroutine to stop.
+	time.Sleep(50 * time.Millisecond)
 	if c.Process != nil && c.Process.dataFile != nil {
 		c.Process.dataFile.Close()
 	}
