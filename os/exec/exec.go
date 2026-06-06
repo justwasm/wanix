@@ -85,6 +85,11 @@ func (c *Cmd) environ() []string {
 	return os.Environ()
 }
 
+// Environ returns the environment that the command will run with.
+func (c *Cmd) Environ() []string {
+	return c.environ()
+}
+
 // Run starts the command and waits for it to complete.
 func (c *Cmd) Run() error {
 	if err := c.Start(); err != nil {
