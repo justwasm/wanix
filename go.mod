@@ -10,6 +10,9 @@ replace golang.org/x/sys => github.com/progrium/sys-wasm v0.0.0-20240620081741-5
 // based on https://github.com/fxamacker/cbor/issues/686
 replace github.com/fxamacker/cbor/v2 => ./misc/cbor
 
+// local checkout with fix for mux "invalid channel" bug (session.go:onePacket)
+replace tractor.dev/toolkit-go => ../justwasm/toolkit-go
+
 require (
 	github.com/creack/pty v1.1.24
 	github.com/evanw/esbuild v0.28.0

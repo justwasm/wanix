@@ -3,6 +3,7 @@ package wanix
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"strings"
@@ -114,6 +115,10 @@ func (t *Task) Register(kind string, driver TaskDriver) {
 	t.fsys.types[kind] = driver
 }
 
+func (t *Task) Alloc(kind string) (*Task, error) {
+	return t.fsys.Alloc(kind, t)
+}
+
 func (t *Task) Start() error {
 	if t.driver != nil {
 		return t.driver.Start(t)
@@ -193,6 +198,15 @@ func (r *Task) OpenFD(file fs.File, path string) int {
 	return r.fdIdx
 }
 
+func (r *Task) SetFD(fd int, file fs.File, path string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fds[fd] = &openFile{file: file, path: path}
+	if fd > r.fdIdx {
+		r.fdIdx = fd
+	}
+}
+
 func (r *Task) CloseFD(fd int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -214,14 +228,22 @@ func (r *Task) FD(fd int) (fs.File, string, error) {
 		return nil, "", fs.ErrInvalid
 	}
 	if fd < 3 {
-		name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
-		// this should probably use #task/self but i think there are some
-		// issues to work out for that to work correctly here.
-		stdfile, err := r.NS().Open(name)
-		if err != nil {
-			return nil, "", err
+		// Check SetFD-registered fds first (for spawned child tasks)
+		if existing, ok := r.fds[fd]; ok {
+			return existing.file, existing.path, nil
 		}
-		r.fds[fd] = &openFile{file: stdfile, path: name}
+		// Fallback: try the VFS path (#task/{id}/fd/{n}) which exists
+		// for tasks with terminal bindings. If it fails, create a nullFile
+		// so writes don't error out.
+		name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
+		stdfile, err := r.NS().Open(name)
+		if err == nil {
+			r.fds[fd] = &openFile{file: stdfile, path: name}
+			return stdfile, name, nil
+		}
+		// VFS path failed — register a nullFile to avoid FD errors
+		r.fds[fd] = &openFile{file: &nullFile{}, path: "/dev/null"}
+		return r.fds[fd].file, r.fds[fd].path, nil
 	}
 	f, ok := r.fds[fd]
 	if !ok {
@@ -473,3 +495,12 @@ func (d *TaskFS) OpenContext(ctx context.Context, name string) (fs.File, error) 
 	}
 	return fs.OpenContext(ctx, fsys, rname)
 }
+
+// nullFile is a /dev/null equivalent — writes discard, reads return EOF.
+type nullFile struct {
+	fs.File
+}
+
+func (f *nullFile) Read(b []byte) (int, error)  { return 0, io.EOF }
+func (f *nullFile) Write(b []byte) (int, error) { return len(b), nil }
+func (f *nullFile) Close() error                { return nil }

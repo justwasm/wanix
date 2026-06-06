@@ -51,5 +51,8 @@ func Responder(sess mux.Session, task *wanix.Task) {
 	peer.Handle("Readlink", rpc.HandlerFunc(syscaller.readlink))
 	peer.Handle("Symlink", rpc.HandlerFunc(syscaller.symlink))
 	peer.Handle("Chtimes", rpc.HandlerFunc(syscaller.chtimes))
+	peer.Handle("Spawn", rpc.HandlerFunc(syscaller.spawn))
+	peer.Handle("Wait", rpc.HandlerFunc(syscaller.wait))
+	peer.Handle("Pipe", rpc.HandlerFunc(syscaller.pipe))
 	peer.Respond()
 }

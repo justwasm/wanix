@@ -24,7 +24,7 @@ func (s *syscaller) write(r rpc.Responder, c *rpc.Call) {
 
 	data, ok := args[1].([]byte)
 	if !ok {
-		panic("arg 1 is not a []byte")
+		log.Panicf("write: arg 1 is not []byte, got %T", args[1])
 	}
 
 	n, err := fs.Write(f, data)

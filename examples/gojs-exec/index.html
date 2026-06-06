@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Wanix os/exec Demo</title>
+    <script type="module" src="../../dist/wanix.min.js"></script>
+    <style>
+        body { margin: 0; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; }
+        .header { padding: 16px 24px; background: #16213e; border-bottom: 1px solid #0f3460; }
+        .header h1 { margin: 0; font-size: 18px; color: #e94560; }
+        .header p { margin: 4px 0 0; font-size: 13px; color: #888; }
+        #terminal { height: calc(100vh - 80px); }
+        .status { padding: 8px 24px; background: #0f3460; font-size: 12px; color: #aaa; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚡ Wanix os/exec Demo</h1>
+        <p>Parent spawns child processes via <code>os/exec</code> — each child runs in its own Web Worker</p>
+    </div>
+
+    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+        <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
+        <!-- Fetch both WASM binaries into the VFS -->
+        <wanix-bind type="fetch" dst="child.wasm" src="./child.wasm"></wanix-bind>
+        <wanix-bind type="fetch" dst="parent.wasm" src="./parent.wasm"></wanix-bind>
+
+        <!-- Run the parent; it will spawn child.wasm via os/exec -->
+        <wanix-task id="demo" cmd="parent.wasm" type="gojs" term start></wanix-task>
+
+        <!-- Render terminal showing parent output -->
+        <wanix-term id="terminal" path="#task/demo/term"></wanix-term>
+    </wanix-system>
+
+    <div class="status" id="status">Waiting for Wanix to initialize...</div>
+
+    <script>
+        // Update status when Wanix is ready
+        document.querySelector('wanix-system').addEventListener('ready', () => {
+            document.getElementById('status').textContent = '✅ Wanix ready — parent.wasm started, check terminal for output';
+        });
+        document.querySelector('wanix-system').addEventListener('error', (e) => {
+            document.getElementById('status').textContent = '❌ Error: ' + e.detail;
+        });
+    </script>
+</body>
+</html>
