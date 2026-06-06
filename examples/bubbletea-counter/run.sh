@@ -11,9 +11,11 @@ echo "=== Building wanix debug WASM ==="
 make wasm-go 2>&1 | tail -1
 
 echo "=== Building Bubbletea WASM ==="
-cd examples/bubbletea-counter
-go run ../../tools/build-bubbletea -o bubbletea.wasm . 2>&1
-cd ../..
+go build -o /tmp/boba ./tools/build-bubbletea
+
+pushd examples/bubbletea-counter
+/tmp/boba -o ./bubbletea.wasm . 2>&1
+popd
 
 echo "=== Starting dev server ==="
 echo "Open http://localhost:7070/examples/bubbletea-counter/"
