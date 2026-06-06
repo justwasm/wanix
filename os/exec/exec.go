@@ -57,8 +57,6 @@ type Cmd struct {
 	cancel    context.CancelFunc
 	taskID    string
 	taskPath  string
-	termID    string
-	termPath  string
 	started   bool
 	errc      chan error // used internally for Wait synchronization
 }
@@ -139,26 +137,24 @@ func (c *Cmd) Start() error {
 		}
 	}
 
-	// 5. Allocate a terminal for I/O
-	termID := readStr(c.ctx, "#term/new")
-	if termID == "" {
-		return fmt.Errorf("exec: failed to allocate term")
+	// 5. Use parent's own term for child I/O — reusing the terminal
+	//    avoids creating a new one via #term/new (which requires DOM).
+	parentID := readStr(c.ctx, "#task/self/id")
+	if parentID == "" {
+		return fmt.Errorf("exec: failed to resolve parent task ID")
 	}
-	c.termID = termID
-	c.termPath = filepath.Join("#term", termID)
-	termProg := c.termPath + "/program"
+	parentTerm := filepath.Join("#task", parentID, "term")
 
-	// 6. Bind fds to term
+	// 6. Bind child's fds to parent's term
 	for _, fd := range []string{"0", "1", "2"} {
 		if err := appendFile(c.taskPath+"/ctl",
-			fmt.Sprintf("bind %s %s/fd/%s", termProg, c.taskPath, fd)); err != nil {
+			fmt.Sprintf("bind %s/program %s/fd/%s", parentTerm, c.taskPath, fd)); err != nil {
 			return fmt.Errorf("exec: bind fd/%s: %w", fd, err)
 		}
 	}
 
-	// 7. Open term data for I/O
-	dataPath := c.termPath + "/data"
-	dataFile, err := os.OpenFile(dataPath, os.O_RDWR, 0)
+	// 7. Open parent's term data for reading (child output)
+	dataFile, err := os.Open(parentTerm + "/data")
 	if err != nil {
 		return fmt.Errorf("exec: open term data: %w", err)
 	}
@@ -188,10 +184,15 @@ func (c *Cmd) Start() error {
 		c.errc <- err
 	}()
 
-	// Copy c.Stdin → child stdin
+	// Copy c.Stdin → child stdin (write directly to term data)
 	if c.Stdin != nil {
 		go func() {
-			_, _ = io.Copy(dataFile, c.Stdin)
+			w, err := os.OpenFile(parentTerm+"/data", os.O_WRONLY, 0)
+			if err != nil {
+				return
+			}
+			defer w.Close()
+			_, _ = io.Copy(w, c.Stdin)
 		}()
 	}
 
@@ -275,7 +276,8 @@ func (c *Cmd) String() string {
 // --- helpers ---
 
 func readStr(ctx context.Context, path string) string {
-	for {
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
 			return ""
@@ -287,6 +289,7 @@ func readStr(ctx context.Context, path string) string {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	return ""
 }
 
 func appendFile(path, data string) error {
