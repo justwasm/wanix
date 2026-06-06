@@ -12,8 +12,12 @@ self.addEventListener("message", async (e) => {
     globalThis.worker = e.data.worker;
     globalThis.sys = fs; // deprecated
     const tid = e.data.worker.tid;
+    globalThis.process.pid = parseInt(tid);
+    globalThis.process.ppid = parseInt(e.data.worker.ppid || "0");
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
     const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
+    // Strip leading ./ or / from the WASM path for VFS compatibility
+    args[0] = cleanpath(args[0]);
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
     const bin = await fs.readFile(args[0]); 
 
@@ -24,18 +28,24 @@ self.addEventListener("message", async (e) => {
         if (idx === -1) return [line, ""];
         return [line.slice(0, idx), line.slice(idx + 1)];
     }));
-    go.exit = async (code) => {
-        await fs.writeFile(`${TASKNS}/${tid}/exit`, code.toString());
+    let exitCode = 0;
+    go.exit = (code) => {
+        exitCode = code;
     };
     const result = await WebAssembly.instantiate(bin, go.importObject);
     const start = performance.now();
     await go.run(result.instance);
     const end = performance.now();
     console.log(`gojs execution took ${end - start}ms`);
+    try {
+        await fs.writeFile(`${TASKNS}/${tid}/exit`, exitCode.toString());
+    } catch (e) {
+        console.warn("gojs exit write failed:", e);
+    }
 });
 
 function log(...args) {
-    // console.log(...args);
+    console.log(...args);
 }
 
 
@@ -45,10 +55,11 @@ function errback(cb, e) {
     const err = new Error(e);
     if (e.includes("does not exist")) {
         err.code = "ENOENT";
-    }
-    if (e.includes("permission denied")) {
+    } else if (e.includes("permission denied")) {
         err.code = "EPERM";
         console.warn(err);
+    } else {
+        err.code = "ENOSYS";
     }
     if (e.includes("not a directory")) {
         err.code = "ENOTDIR";
@@ -378,10 +389,41 @@ function cleanpath(path) {
                     errback(callback, e);
                 }
             },
-		};
-	}
+            async pipe(callback) {
+                log("pipe");
+                try {
+                    callback(null, await sys.pipe());
+                } catch (e) {
+                    errback(callback, e);
+                }
+            },
+        };
+    }
 
-	if (!globalThis.process) {
+    if (!globalThis.child_process) {
+        globalThis.child_process = {
+            async spawn(name, args, opts, callback) {
+                log("child_process.spawn", name, args, opts);
+                try {
+                    const result = await sys.spawn(name, args, opts);
+                    if (callback) callback(null, { pid: result.pid });
+                } catch (e) {
+                    if (callback) errback(callback, e);
+                }
+            },
+            async wait(pid, callback) {
+                log("child_process.wait", pid);
+                try {
+                    const result = await sys.wait(pid);
+                    if (callback) callback(null, { pid, exitCode: result.exitCode });
+                } catch (e) {
+                    if (callback) errback(callback, e);
+                }
+            },
+        };
+    }
+
+    if (!globalThis.process) {
 		globalThis.process = {
 			getuid() { return -1; },
 			getgid() { return -1; },

@@ -4104,6 +4104,18 @@ var WanixHandle = class {
     this.logger(`chtimes ${name} ${atime} ${mtime}`);
     await this.peer.call("Chtimes", [name, atime, mtime]);
   }
+  async spawn(name, args, opts) {
+    this.logger(`spawn ${name}`);
+    return (await this.peer.call("Spawn", [name, args, opts])).value;
+  }
+  async wait(pid) {
+    this.logger(`wait ${pid}`);
+    return (await this.peer.call("Wait", [pid])).value;
+  }
+  async pipe() {
+    this.logger("pipe");
+    return (await this.peer.call("Pipe", [])).value;
+  }
   async openReadable(name) {
     this.logger(`openReadable ${name}`);
     const fd = await this.open(name);
