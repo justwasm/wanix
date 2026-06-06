@@ -42,11 +42,6 @@ export class TerminalElement extends WanixElement {
         this._term.loadAddon(this._fitAddon);
         this._term.open(this);
 
-        this._fitAddon.fit();
-        this.dataset.cols = this._term.cols;
-        this.dataset.rows = this._term.rows;
-        this.dataset.xpixel = this.offsetWidth;
-        this.dataset.ypixel = this.offsetHeight;
         this.#resizeObserver = new ResizeObserver(() => {
             this._fitAddon.fit();
             this.dataset.cols = this._term.cols;
@@ -62,7 +57,7 @@ export class TerminalElement extends WanixElement {
         this.style.flexDirection = "column";
         this.style.height = "100%";
 
-        // expose initial dimensions for task env setup
+        this._fitAddon.fit();
         this.dataset.cols = this._term.cols;
         this.dataset.rows = this._term.rows;
         this.dataset.xpixel = this.offsetWidth;
