@@ -4,22 +4,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
 
 type model struct {
-	count   int
-	width   int
-	height  int
-	xpixel  int
-	ypixel  int
-}
-
-type xyMsg struct {
-	xpixel int
-	ypixel int
+	count  int
+	width  int
+	height int
 }
 
 func (m model) Init() tea.Cmd {
@@ -40,9 +32,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-	case xyMsg:
-		m.xpixel = msg.xpixel
-		m.ypixel = msg.ypixel
 	}
 	return m, nil
 }
@@ -52,6 +41,8 @@ func (m model) View() tea.View {
 	if w == 0 {
 		w = 80
 	}
+	xpixel, _ := strconv.Atoi(os.Getenv("WANIX_XPIXEL"))
+	ypixel, _ := strconv.Atoi(os.Getenv("WANIX_YPIXEL"))
 	return tea.View{
 		Content: fmt.Sprintf(`
 Bubbletea in wanix!
@@ -64,7 +55,7 @@ pixels: %dx%d
 ↑/k: increment
 ↓/j: decrement
  q:   quit
-`, m.count, m.width, m.height, m.xpixel, m.ypixel),
+`, m.count, m.width, m.height, xpixel, ypixel),
 		AltScreen: true,
 	}
 }
@@ -76,45 +67,12 @@ func main() {
 	// read initial terminal dimensions from env (set by task.js from term element)
 	initCols, _ := strconv.Atoi(os.Getenv("WANIX_COLS"))
 	initRows, _ := strconv.Atoi(os.Getenv("WANIX_ROWS"))
-	initXpixel, _ := strconv.Atoi(os.Getenv("WANIX_XPIXEL"))
-	initYpixel, _ := strconv.Atoi(os.Getenv("WANIX_YPIXEL"))
 
-	p := tea.NewProgram(model{width: initCols, height: initRows, xpixel: initXpixel, ypixel: initYpixel},
+	p := tea.NewProgram(model{width: initCols, height: initRows},
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(os.Stdout),
 	)
 
-	// start winch reader for terminal resize
-	winchPath := os.Getenv("TERM_WINCH")
-	if winchPath != "" {
-		go func() {
-			f, err := os.Open(winchPath)
-			if err != nil {
-				return
-			}
-			defer f.Close()
-			buf := make([]byte, 64)
-			for {
-				n, err := f.Read(buf)
-				if err != nil {
-					return
-				}
-				parts := strings.Fields(string(buf[:n]))
-				if len(parts) >= 2 {
-					cols, _ := strconv.Atoi(parts[0])
-					rows, _ := strconv.Atoi(parts[1])
-					if cols > 0 && rows > 0 {
-						p.Send(tea.WindowSizeMsg{Width: cols, Height: rows})
-					}
-				}
-				if len(parts) >= 4 {
-					xpixel, _ := strconv.Atoi(parts[2])
-					ypixel, _ := strconv.Atoi(parts[3])
-					p.Send(xyMsg{xpixel: xpixel, ypixel: ypixel})
-				}
-			}
-		}()
-	}
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "bubbletea: %v\n", err)
 		os.Exit(1)
