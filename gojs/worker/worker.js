@@ -222,7 +222,15 @@ function cleanpath(path) {
                     errback(callback, e);
                 }
             },
-			flock(fd, how, callback) { callback(enosys()); },
+			async flock(fd, how, callback) {
+                log("flock", fd, how);
+                try {
+                    await sys.flock(fd, how);
+                    callback(null);
+                } catch (e) {
+                    errback(callback, e);
+                }
+            },
 			lchown(path, uid, gid, callback) { callback(enosys()); },
 			link(path, link, callback) { callback(enosys()); },
 			async lstat(path, callback) {
