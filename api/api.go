@@ -48,6 +48,7 @@ func Responder(sess mux.Session, task *wanix.Task) {
 	peer.Handle("Fchmod", rpc.HandlerFunc(syscaller.fchmod))
 	peer.Handle("Fchown", rpc.HandlerFunc(syscaller.fchown))
 	peer.Handle("Ftruncate", rpc.HandlerFunc(syscaller.ftruncate))
+	peer.Handle("Flock", rpc.HandlerFunc(syscaller.flock))
 	peer.Handle("Readlink", rpc.HandlerFunc(syscaller.readlink))
 	peer.Handle("Symlink", rpc.HandlerFunc(syscaller.symlink))
 	peer.Handle("Chtimes", rpc.HandlerFunc(syscaller.chtimes))
