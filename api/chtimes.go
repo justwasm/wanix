@@ -7,6 +7,22 @@ import (
 	"tractor.dev/wanix/fs"
 )
 
+func toSeconds(v any) (int64, int64, bool) {
+	switch n := v.(type) {
+	case float64:
+		sec := int64(n)
+		nsec := int64((n - float64(sec)) * 1e9)
+		return sec, nsec, true
+	case int64:
+		return n, 0, true
+	case int:
+		return int64(n), 0, true
+	case uint64:
+		return int64(n), 0, true
+	}
+	return 0, 0, false
+}
+
 func (s *syscaller) chtimes(r rpc.Responder, c *rpc.Call) {
 	var args []any
 	c.Receive(&args)
@@ -16,18 +32,17 @@ func (s *syscaller) chtimes(r rpc.Responder, c *rpc.Call) {
 		panic("arg 0 is not a string")
 	}
 
-	// atime and mtime are in seconds (with fractional parts)
-	atimeSec, ok := args[1].(float64)
+	atimeSec, atimeNsec, ok := toSeconds(args[1])
 	if !ok {
-		panic("arg 1 is not a float64")
+		panic("arg 1 is not a valid time value (expected float64 or int)")
 	}
-	atime := time.Unix(int64(atimeSec), int64((atimeSec-float64(int64(atimeSec)))*1e9))
+	atime := time.Unix(atimeSec, atimeNsec)
 
-	mtimeSec, ok := args[2].(float64)
+	mtimeSec, mtimeNsec, ok := toSeconds(args[2])
 	if !ok {
-		panic("arg 2 is not a float64")
+		panic("arg 2 is not a valid time value (expected float64 or int)")
 	}
-	mtime := time.Unix(int64(mtimeSec), int64((mtimeSec-float64(int64(mtimeSec)))*1e9))
+	mtime := time.Unix(mtimeSec, mtimeNsec)
 
 	err := fs.Chtimes(s.task.NS(), path, atime, mtime)
 	if err != nil {
