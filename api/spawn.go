@@ -230,8 +230,7 @@ func (f *nullFile) Stat() (fs.FileInfo, error) {
 
 func monitorChildExit(parent, child *wanix.Task, trackedPipes []*chanPipe) {
 	exitPath := filepath.Join("#task", child.ID(), "exit")
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
+	for {
 		f, err := fs.OpenContext(context.Background(), parent.NS(), exitPath)
 		if err != nil {
 			time.Sleep(50 * time.Millisecond)
@@ -247,10 +246,6 @@ func monitorChildExit(parent, child *wanix.Task, trackedPipes []*chanPipe) {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
-	}
-	// Timeout — release refs anyway to prevent goroutine leak.
-	for _, cp := range trackedPipes {
-		cp.removeWriter()
 	}
 }
 

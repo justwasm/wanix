@@ -50,24 +50,24 @@ function log(...args) {
 
 
 function errback(cb, e) {
-    if (e instanceof Error) throw e;
     log("errback", e);
-    const err = new Error(e);
-    if (e.includes("does not exist")) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const err = new Error(msg);
+    if (msg.includes("does not exist")) {
         err.code = "ENOENT";
-    } else if (e.includes("permission denied")) {
+    } else if (msg.includes("permission denied")) {
         err.code = "EPERM";
         console.warn(err);
     } else {
         err.code = "ENOSYS";
     }
-    if (e.includes("not a directory")) {
+    if (msg.includes("not a directory")) {
         err.code = "ENOTDIR";
     }
-    if (e.includes("file already exists")) {
+    if (msg.includes("file already exists")) {
         err.code = "EEXIST";
     }
-    if (e.includes("invalid argument")) {
+    if (msg.includes("invalid argument")) {
         err.code = "EINVAL";
     }
     if (!err.code) {
