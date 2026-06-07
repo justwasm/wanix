@@ -31,11 +31,10 @@ func (s *syscaller) wait(r rpc.Responder, c *rpc.Call) {
 	taskPath := filepath.Join("#task", pidStr)
 	exitPath := filepath.Join(taskPath, "exit")
 
-	// Poll the exit file with timeout
-	deadline := time.Now().Add(30 * time.Second)
+	// Poll the exit file, waiting indefinitely for the child to exit
 	var exitCode int64
 	found := false
-	for time.Now().Before(deadline) {
+	for {
 		f, err := fs.OpenContext(context.Background(), s.task.NS(), exitPath)
 		if err != nil {
 			time.Sleep(50 * time.Millisecond)
