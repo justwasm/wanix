@@ -222,6 +222,7 @@ function cleanpath(path) {
                     errback(callback, e);
                 }
             },
+			flock(fd, how, callback) { callback(enosys()); },
 			lchown(path, uid, gid, callback) { callback(enosys()); },
 			link(path, link, callback) { callback(enosys()); },
 			async lstat(path, callback) {

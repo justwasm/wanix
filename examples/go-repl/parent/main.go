@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,11 +11,12 @@ func main() {
 	fmt.Println("=== Go Build Demo ===")
 	fmt.Println("PID:", os.Getpid())
 
-	goroot := "/go-toolchain"
-	env := append(os.Environ(), "GOROOT="+goroot)
+	goroot := cmp.Or(os.Getenv("GOROOT"), "/go")
+	env := os.Environ()
+	fmt.Println("env", os.Environ())
 
 	fmt.Println("\n--- go version ---")
-	run(exec.Command(goroot+"/bin/go.wasm", "version"), env)
+	run(exec.Command(goroot+"/bin/go", "version"), env)
 
 	fmt.Println("\n--- Write test source ---")
 	src := `package main
@@ -27,7 +29,9 @@ func main() { fmt.Println("Hello from compiled Go!") }`
 	fmt.Println("Source written")
 
 	fmt.Println("\n--- go build ---")
-	cmd := exec.Command(goroot+"/bin/go.wasm", "build", "-o", "hello.wasm", "hello.go")
+	// Clear stale build cache (experiment flags may differ between runs)
+	exec.Command("go", "clean", "-cache").Run()
+	cmd := exec.Command("go", "build", "-v", "-o", "hello.wasm", "hello.go")
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
