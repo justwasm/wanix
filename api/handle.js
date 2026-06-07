@@ -175,6 +175,11 @@ export class WanixHandle {
         await this.peer.call("Ftruncate", [fd, length]);
     }
 
+    async flock(fd, how) {
+        this.logger(`flock ${fd} ${how}`);
+        await this.peer.call("Flock", [fd, how]);
+    }
+
     async readlink(name) {
         this.logger(`readlink ${name}`);
         return (await this.peer.call("Readlink", [name])).value;
