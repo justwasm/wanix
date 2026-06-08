@@ -111,7 +111,7 @@ func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
 	//
 	// We register the inherited files at the correct child fd indices using
 	// SetFD(i, ...) so the child Worker's RPC write/read handlers find them.
-	var trackedPipes []*chanPipe
+	var trackedPipes []pipeCore
 	if opts != nil {
 		if stdio, ok := opts["stdio"].([]any); ok {
 			for i := 0; i < 3; i++ {
@@ -228,7 +228,7 @@ func (f *nullFile) Stat() (fs.FileInfo, error) {
 	return fskit.Entry(f.name, 0644, 0), nil
 }
 
-func monitorChildExit(parent, child *wanix.Task, trackedPipes []*chanPipe) {
+func monitorChildExit(parent, child *wanix.Task, trackedPipes []pipeCore) {
 	exitPath := filepath.Join("#task", child.ID(), "exit")
 	for {
 		f, err := fs.OpenContext(context.Background(), parent.NS(), exitPath)
