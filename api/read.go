@@ -31,6 +31,10 @@ func (s *syscaller) read(r rpc.Responder, c *rpc.Call) {
 	buf := make([]byte, count)
 	n, err := f.Read(buf)
 	if err == io.EOF {
+		if n > 0 {
+			r.Return(buf[:n])
+			return
+		}
 		r.Return(nil)
 		return
 	}
@@ -70,6 +74,10 @@ func (s *syscaller) readAt(r rpc.Responder, c *rpc.Call) {
 	buf := make([]byte, count)
 	n, err := fs.ReadAt(f, buf, int64(offset))
 	if err == io.EOF {
+		if n > 0 {
+			r.Return(buf[:n])
+			return
+		}
 		r.Return(nil)
 		return
 	}
