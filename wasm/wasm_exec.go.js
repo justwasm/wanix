@@ -528,7 +528,7 @@
 
 			// The linker guarantees global data starts from at least wasmMinDataAddr.
 			// Keep in sync with cmd/link/internal/ld/data.go:wasmMinDataAddr.
-			const wasmMinDataAddr = 4096 + 8192;
+			const wasmMinDataAddr = 131072; // 4096 + 8192;
 			if (offset >= wasmMinDataAddr) {
 				throw new Error("total length of command line and environment variables exceeds limit");
 			}
