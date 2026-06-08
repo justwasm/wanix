@@ -14,7 +14,7 @@ func main() {
 	// Helper to create a command with stdin wired to avoid /dev/null
 	cmd := func(name string, arg ...string) *exec.Cmd {
 		c := exec.Command(name, arg...)
-		c.Stdin = os.Stdin // avoid opening /dev/null which doesn't exist in VFS
+		// c.Stdin = os.Stdin // avoid opening /dev/null which doesn't exist in VFS
 		return c
 	}
 

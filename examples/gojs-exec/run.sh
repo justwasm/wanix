@@ -4,19 +4,20 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
+GOROOT=/go
+
 echo "=== Building wanix JS ==="
 make js 2>&1 | tail -1
 
 echo "=== Building wanix debug WASM ==="
-make wasm-go 2>&1 | tail -1
-
-echo "=== Copying wanix.wasm for demo ==="
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build \
+	-o dist/wanix.debug.wasm ./wasm 2>&1 | tail -1
 cp dist/wanix.debug.wasm dist/wanix.wasm
 
 echo "=== Building demo WASM binaries (patched Go 1.27) ==="
-GOROOT=/root/justwasm/go GOOS=js GOARCH=wasm /root/justwasm/go/bin/go build \
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build \
 	-o examples/gojs-exec/child.wasm ./examples/gojs-exec/child
-GOROOT=/root/justwasm/go GOOS=js GOARCH=wasm /root/justwasm/go/bin/go build \
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build \
 	-o examples/gojs-exec/parent.wasm ./examples/gojs-exec/parent
 
 echo "=== Starting dev server on http://localhost:4000 ==="

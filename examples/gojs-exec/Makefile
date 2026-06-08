@@ -1,4 +1,4 @@
-GOROOT = /root/justwasm/go
+GOROOT = /go
 GO = $(GOROOT)/bin/go
 GOFLAGS = GOOS=js GOARCH=wasm GOROOT=$(GOROOT)
 
