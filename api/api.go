@@ -24,6 +24,7 @@ func Responder(sess mux.Session, task *wanix.Task) {
 	peer.Handle("Close", rpc.HandlerFunc(syscaller.close))
 	peer.Handle("Sync", rpc.HandlerFunc(syscaller.sync))
 	peer.Handle("Read", rpc.HandlerFunc(syscaller.read))
+	peer.Handle("ReadAt", rpc.HandlerFunc(syscaller.readAt))
 	peer.Handle("Write", rpc.HandlerFunc(syscaller.write))
 	peer.Handle("WriteAt", rpc.HandlerFunc(syscaller.writeAt))
 	peer.Handle("ReadDir", rpc.HandlerFunc(syscaller.readDir))
