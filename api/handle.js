@@ -120,6 +120,11 @@ export class WanixHandle {
         return (await this.peer.call("Read", [fd, count])).value;
     }
 
+    async readAt(fd, count, position) {
+        this.logger(`readAt ${fd} ${count} ${position}`);
+        return (await this.peer.call("ReadAt", [fd, count, position])).value;
+    }
+
     async write(fd, data) {
         this.logger(`write ${fd} len(${data.length})`);
         return (await this.peer.call("Write", [fd, data])).value;
@@ -173,6 +178,11 @@ export class WanixHandle {
     async ftruncate(fd, length) {
         this.logger(`ftruncate ${fd} ${length}`);
         await this.peer.call("Ftruncate", [fd, length]);
+    }
+
+    async flock(fd, how) {
+        this.logger(`flock ${fd} ${how}`);
+        await this.peer.call("Flock", [fd, how]);
     }
 
     async readlink(name) {

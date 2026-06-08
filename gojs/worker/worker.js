@@ -280,7 +280,12 @@ function cleanpath(path) {
 			async read(fd, buffer, offset, length, position, callback) { 
                 log("read", fd, buffer.length, offset, length, position);
                 try {
-                    const buf = await sys.read(fd, length);
+                    let buf;
+                    if (position !== null) {
+                        buf = await sys.readAt(fd, length, position);
+                    } else {
+                        buf = await sys.read(fd, length);
+                    }
                     if (buf === null) {
                         callback(null, 0);
                         return;
@@ -923,7 +928,7 @@ function cleanpath(path) {
 
 			// The linker guarantees global data starts from at least wasmMinDataAddr.
 			// Keep in sync with cmd/link/internal/ld/data.go:wasmMinDataAddr.
-			const wasmMinDataAddr = 4096 + 8192;
+			const wasmMinDataAddr = 131072; // 4096 + 8192;
 			if (offset >= wasmMinDataAddr) {
 				throw new Error("total length of command line and environment variables exceeds limit");
 			}
