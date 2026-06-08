@@ -4,18 +4,28 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
+ROOT=`pwd`
+
 echo "=== Building JS ==="
 make js 2>&1 | tail -1
 
+GOROOT=/go
+
 echo "=== Building kernel WASM ==="
-GOOS=js GOARCH=wasm go build -o dist/wanix.debug.wasm ./wasm 2>&1 | tail -1
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build -o dist/wanix.debug.wasm ./wasm 2>&1 | tail -1
 cp dist/wanix.debug.wasm dist/wanix.wasm
 
-echo "=== Building toolchain WASM (first time may take a while) ==="
-make -C examples/go-repl toolchain 2>&1 | tail -3
+# echo "=== Building toolchain WASM (first time may take a while) ==="
+# make -C examples/go-repl toolchain 2>&1 | tail -3
+
+echo "=== Building rc.wasm ==="
+pushd rc
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build \
+    -o $ROOT/examples/go-repl/rc.wasm ./cmd/rc
+popd
 
 echo "=== Building parent.wasm ==="
-GOROOT=/root/justwasm/go GOOS=js GOARCH=wasm /root/justwasm/go/bin/go build \
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build \
     -o examples/go-repl/parent.wasm ./examples/go-repl/parent
 
 echo "=== Starting server on http://localhost:4000 ==="
