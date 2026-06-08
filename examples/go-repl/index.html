@@ -5,11 +5,11 @@
     <title>Wanix Go Build Demo</title>
     <script type="module" src="../../dist/wanix.min.js"></script>
     <style>
-        body { margin: 0; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; }
-        .header { padding: 16px 24px; background: #16213e; border-bottom: 1px solid #0f3460; }
-        .header h1 { margin: 0; font-size: 18px; color: #e94560; }
-        .header p { margin: 4px 0 0; font-size: 13px; color: #888; }
-        #terminal { height: calc(100vh - 80px); }
+        body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { flex-shrink: 0; padding: 8px 16px; }
+        .header h1 { margin: 0; font-size: 16px; }
+        .header p { margin: 2px 0 0; font-size: 12px; }
+        wanix-system { flex: 1; }
     </style>
 </head>
 <body>
@@ -20,26 +20,61 @@
 
     <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
 
-        <wanix-task id="build" cmd="parent.wasm" type="gojs" term start>
+         <!-- System namespace bindings -->
+         <wanix-bind dst="task" src="#task"></wanix-bind>
 
-            <!-- System namespace bindings -->
-            <wanix-bind dst="task" src="#task"></wanix-bind>
+         <!-- Writable workspace for source + compiled output -->
+	 <wanix-bind dst="gocache" src="#web/opfs"></wanix-bind>
+         <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
+         <wanix-bind dst="." src="#ramfs"></wanix-bind>
 
-            <!-- Go toolchain: binaries + stdlib + tools -->
-            <wanix-bind type="archive" dst="go-toolchain" src="./go-toolchain.tar.gz"></wanix-bind>
 
-            <!-- Writable workspace for source + compiled output -->
-            <wanix-bind dst="." src="#ramfs"></wanix-bind>
+         <wanix-bind dst="hello.go" type="file" mode="644">
+		package main
 
-            <!-- /dev/null: empty file, reads return EOF, writes discarded -->
-            <wanix-bind type="file" dst="dev/null"></wanix-bind>
+		import (
+			"crypto/sha256"
+			"fmt"
+			"io"
+			"os"
+		)
 
-            <!-- The parent WASM binary -->
-            <wanix-bind type="fetch" dst="parent.wasm" src="./parent.wasm"></wanix-bind>
+		func main() {
+			f, err := os.Open("hello.wasm")
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+			h := sha256.New()
+			if _, err := io.Copy(h, f); err != nil {
+				panic(err)
+			}
+			fmt.Printf("%x\n", h.Sum(nil))
 
-        </wanix-task>
+		}
+         </wanix-bind>
 
-        <wanix-term path="#task/build/term"></wanix-term>
+         <!-- Go toolchain: binaries + stdlib + tools -->
+         <wanix-bind type="file" dst="go.tar.gz" src="https://no-cors.deno.dev/https://github.com/justwasm/go/releases/download/go1.27.0-wanix.5/go1.27.0-wanix.5.js-wasm.min.tar.gz"></wanix-bind>
+         <wanix-bind type="archive" dst="." src="https://no-cors.deno.dev/https://github.com/justwasm/go/releases/download/go1.27.0-wanix.5/go1.27.0-wanix.5.js-wasm.min.tar.gz"></wanix-bind>
+
+         <!-- /dev/null: empty file, reads return EOF, writes discarded -->
+         <wanix-bind type="file" dst="dev/null"></wanix-bind>
+
+         <!-- The parent WASM binary -->
+         <wanix-bind type="fetch" dst="parent.wasm" src="./parent.wasm"></wanix-bind>
+         <wanix-bind type="fetch" dst="rc.wasm" src="./rc.wasm"></wanix-bind>
+
+         <!-- 
+           <wanix-bind type="fetch" dst="gocacheprog.wasm" src="./gocacheprog.wasm"></wanix-bind>
+
+           GOCACHESERVER=https://...
+           GOCACHEPROG=/gocacheprog.wasm 
+
+           <wanix-task id="build" env="GOROOT=/go PATH=/go/bin GOCACHE=/gocache" cmd="parent.wasm" type="gojs" term start></wanix-task>
+	 -->
+         <wanix-task id="build" env="GOROOT=/go PATH=/go/bin GOCACHE=/gocache" cmd="rc.wasm" type="gojs" term start></wanix-task>
+         <wanix-term path="#task/build/term"></wanix-term>
     </wanix-system>
 </body>
 </html>
