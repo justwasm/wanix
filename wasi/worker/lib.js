@@ -8470,6 +8470,10 @@ var WanixHandle2 = class {
     this.logger(`read ${fd} ${count}`);
     return (await this.peer.call("Read", [fd, count])).value;
   }
+  async readAt(fd, count, position5) {
+    this.logger(`readAt ${fd} ${count} ${position5}`);
+    return (await this.peer.call("ReadAt", [fd, count, position5])).value;
+  }
   async write(fd, data) {
     this.logger(`write ${fd} len(${data.length})`);
     return (await this.peer.call("Write", [fd, data])).value;
@@ -8513,6 +8517,10 @@ var WanixHandle2 = class {
   async ftruncate(fd, length) {
     this.logger(`ftruncate ${fd} ${length}`);
     await this.peer.call("Ftruncate", [fd, length]);
+  }
+  async flock(fd, how) {
+    this.logger(`flock ${fd} ${how}`);
+    await this.peer.call("Flock", [fd, how]);
   }
   async readlink(name) {
     this.logger(`readlink ${name}`);
