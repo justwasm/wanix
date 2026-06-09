@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"sync"
 
 	"tractor.dev/toolkit-go/duplex/rpc"
@@ -8,17 +9,43 @@ import (
 )
 
 var (
-	fileLocks   = make(map[string]*sync.Mutex)
+	fileLocks   = make(map[string]*fileLock)
 	fileLocksMu sync.Mutex
 )
 
-func getFileLock(path string) *sync.Mutex {
+// fileLock is a mutex backed by a buffered channel, enabling TryLock.
+type fileLock struct {
+	ch chan struct{}
+}
+
+func newFileLock() *fileLock {
+	return &fileLock{ch: make(chan struct{}, 1)}
+}
+
+func (l *fileLock) Lock() {
+	l.ch <- struct{}{}
+}
+
+func (l *fileLock) Unlock() {
+	<-l.ch
+}
+
+func (l *fileLock) TryLock() bool {
+	select {
+	case l.ch <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func getFileLock(path string) *fileLock {
 	fileLocksMu.Lock()
 	defer fileLocksMu.Unlock()
 	if l, ok := fileLocks[path]; ok {
 		return l
 	}
-	l := new(sync.Mutex)
+	l := newFileLock()
 	fileLocks[path] = l
 	return l
 }
@@ -29,13 +56,15 @@ func (s *syscaller) flock(r rpc.Responder, c *rpc.Call) {
 
 	ufd, ok := args[0].(uint64)
 	if !ok {
-		panic("arg 0 is not a uint64")
+		r.Return(fmt.Errorf("invalid argument: fd not uint64"))
+		return
 	}
 	fd := int(ufd)
 
 	uflags, ok := args[1].(uint64)
 	if !ok {
-		panic("arg 1 is not a uint64")
+		r.Return(fmt.Errorf("invalid argument: flags not uint64"))
+		return
 	}
 	flags := int(uflags)
 
@@ -46,33 +75,18 @@ func (s *syscaller) flock(r rpc.Responder, c *rpc.Call) {
 	}
 
 	l := getFileLock(path)
-	shouldLock := flags&syscall.LOCK_NB == 0
+	blocking := flags&syscall.LOCK_NB == 0
 	flags &^= syscall.LOCK_NB
 
 	switch flags {
 	case syscall.LOCK_EX, syscall.LOCK_SH:
-		if shouldLock {
+		if blocking {
 			l.Lock()
-		} else if !tryLock(l) {
+		} else if !l.TryLock() {
 			r.Return(syscall.EAGAIN)
 			return
 		}
 	case syscall.LOCK_UN:
 		l.Unlock()
-	}
-}
-
-// tryLock attempts to acquire the lock without blocking.
-func tryLock(m *sync.Mutex) bool {
-	locked := make(chan struct{}, 1)
-	go func() {
-		m.Lock()
-		locked <- struct{}{}
-	}()
-	select {
-	case <-locked:
-		return true
-	default:
-		return false
 	}
 }
