@@ -2,9 +2,9 @@ package api
 
 import (
 	"sync"
-	"syscall"
 
 	"tractor.dev/toolkit-go/duplex/rpc"
+	"tractor.dev/wanix/syscall"
 )
 
 var (
