@@ -1,5 +1,6 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { WanixElement } from "./base.js";
 
 export class TerminalElement extends WanixElement {
@@ -38,6 +39,7 @@ export class TerminalElement extends WanixElement {
             ...this._getOptionsFromAttributes()
         });
 
+        this._term.loadAddon(new ClipboardAddon());
         this._fitAddon = new FitAddon();
         this._term.loadAddon(this._fitAddon);
         this._term.open(this);
