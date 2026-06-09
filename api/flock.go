@@ -3,9 +3,9 @@ package api
 import (
 	"fmt"
 	"sync"
+	"syscall"
 
 	"tractor.dev/toolkit-go/duplex/rpc"
-	"tractor.dev/wanix/syscall"
 )
 
 var (
@@ -83,7 +83,7 @@ func (s *syscaller) flock(r rpc.Responder, c *rpc.Call) {
 		if blocking {
 			l.Lock()
 		} else if !l.TryLock() {
-			r.Return(syscall.EAGAIN)
+			r.Return(syscall.EWOULDBLOCK)
 			return
 		}
 	case syscall.LOCK_UN:

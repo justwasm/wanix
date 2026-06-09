@@ -58,6 +58,9 @@ function errback(cb, e) {
     } else if (msg.includes("permission denied")) {
         err.code = "EPERM";
         console.warn(err);
+    } else if (msg.includes("Try again")) {
+        err.code = "EWOULDBLOCK";
+        console.warn(err);
     } else {
         err.code = "ENOSYS";
     }
