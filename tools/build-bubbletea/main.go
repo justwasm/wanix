@@ -28,6 +28,7 @@ type modulePatch struct {
 
 var patches = []modulePatch{
 	{modulePath: "charm.land/bubbletea/v2", stubDir: "stubs/bubbletea"},
+	{modulePath: "github.com/atotto/clipboard", stubDir: "stubs/clipboard"},
 }
 
 func main() {
