@@ -19,8 +19,7 @@
         <wanix-bind type="fetch" dst="bubbletea.wasm" src="bubbletea.wasm"></wanix-bind>
 
         <!-- run bubbletea as gojs task with TERM_WINCH pointing to term's winch file -->
-        <wanix-task id="counter" type="gojs" cmd="bubbletea.wasm" start term
-                    env="TERM_WINCH=winch">
+        <wanix-task id="counter" type="gojs" cmd="bubbletea.wasm" start term env="HOME=/crush CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 TERM_WINCH=winch">
             <wanix-bind dst="winch" src="#task/self/term/winch"></wanix-bind>
         </wanix-task>
 
