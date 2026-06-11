@@ -57,6 +57,7 @@ func Responder(sess mux.Session, task *wanix.Task) {
 	peer.Handle("Wait", rpc.HandlerFunc(syscaller.wait))
 	peer.Handle("Pipe", rpc.HandlerFunc(syscaller.pipe))
 	peer.Handle("Openpty", rpc.HandlerFunc(syscaller.openpty))
+	peer.Handle("OpenNull", rpc.HandlerFunc(syscaller.openNull))
 	peer.Handle("GetWinSize", rpc.HandlerFunc(syscaller.getWinSize))
 	peer.Handle("SetWinSize", rpc.HandlerFunc(syscaller.setWinSize))
 	peer.Respond()

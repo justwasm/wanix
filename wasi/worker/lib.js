@@ -8550,6 +8550,10 @@ var WanixHandle2 = class {
     this.logger("openpty");
     return (await this.peer.call("Openpty", [])).value;
   }
+  async openNull() {
+    this.logger("openNull");
+    return (await this.peer.call("OpenNull", [])).value;
+  }
   async getWinSize(fd) {
     this.logger(`getWinSize ${fd}`);
     return (await this.peer.call("GetWinSize", [fd])).value;
