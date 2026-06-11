@@ -24,6 +24,7 @@ import (
 	"tractor.dev/wanix/fs/tarfs"
 	"tractor.dev/wanix/misc"
 	"tractor.dev/wanix/misc/jsutil"
+	"tractor.dev/wanix/pty"
 	"tractor.dev/wanix/term"
 	"tractor.dev/wanix/vm"
 	"tractor.dev/wanix/web"
@@ -51,6 +52,7 @@ func main() {
 		{"#signal", &signal.Allocator{}},
 		{"#ramfs", &memfs.Allocator{}},
 		{"#js", jsfs.NewFS(js.Global())},
+		{"#ptmx", pty.New()},
 	}
 	for _, b := range sysbindings {
 		if err := root.NS().Bind(b.fsys, ".", b.dst); err != nil {

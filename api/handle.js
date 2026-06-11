@@ -215,6 +215,21 @@ export class WanixHandle {
         return (await this.peer.call("Pipe", [])).value;
     }
 
+    async openpty() {
+        this.logger("openpty");
+        return (await this.peer.call("Openpty", [])).value;
+    }
+
+    async getWinSize(fd) {
+        this.logger(`getWinSize ${fd}`);
+        return (await this.peer.call("GetWinSize", [fd])).value;
+    }
+
+    async setWinSize(fd, rows, cols, xpx, ypx) {
+        this.logger(`setWinSize ${fd} ${rows}x${cols}`);
+        return (await this.peer.call("SetWinSize", [fd, {rows, cols, xpx, ypx}])).value;
+    }
+
     async openReadable(name) {
         this.logger(`openReadable ${name}`);
         const fd = await this.open(name);

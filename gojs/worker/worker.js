@@ -14,6 +14,7 @@ self.addEventListener("message", async (e) => {
     const tid = e.data.worker.tid;
     globalThis.process.pid = parseInt(tid);
     globalThis.process.ppid = parseInt(e.data.worker.ppid || "0");
+
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
     const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
     // Strip leading ./ or / from the WASM path for VFS compatibility
@@ -285,6 +286,20 @@ function cleanpath(path) {
                 path = cleanpath(path);
                 log("open", path, flags, mode);
                 try {
+                    // Intercept /dev/ptmx - allocate a PTY pair
+                    if (path === "dev/ptmx" || path === "/dev/ptmx") {
+                        const result = await sys.openpty();
+                        globalThis._lastPtySlaveNum = result.slaveNum;
+                        callback(null, result.master);
+                        return;
+                    }
+                    // Intercept /dev/pts/{N} - open the slave side
+                    const ptsMatch = path.match(/^\/?dev\/pts\/(\d+)$/);
+                    if (ptsMatch) {
+                        const slavePath = `#ptmx/pts/${ptsMatch[1]}`;
+                        callback(null, await sys.openFile(slavePath, flags, mode));
+                        return;
+                    }
                     callback(null, await sys.openFile(path, flags, mode));
                 } catch (e) {
                     errback(callback, e);
