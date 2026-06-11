@@ -92,11 +92,21 @@ function cleanpath(path) {
         path = [globalThis.cwd, path].join("/");
     }
     path = path.replace(/\/+/g, '/'); // collapse multiple slashes
-    path = path.replace(/^\/+/, ''); // remove leading slash
-    path = path.replace(/\/+$/, ''); // remove trailing slash(es)
-	if (path === "") {
-		path = ".";
-	}
+
+    const parts = path.split('/');
+
+    const stack = [];
+
+    for (const p of parts) {
+        if (p === "" || p === ".") {
+            continue;
+        }
+        stack.push(p);
+    }
+
+    path = stack.join('/');
+
+    if (path === "") return ".";
     return path;
 }
 
