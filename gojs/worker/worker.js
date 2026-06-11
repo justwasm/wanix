@@ -300,6 +300,11 @@ function cleanpath(path) {
                         callback(null, await sys.openFile(slavePath, flags, mode));
                         return;
                     }
+                    // Intercept /dev/null - discard writes, return EOF on reads
+                    if (path === "dev/null" || path === "/dev/null") {
+                        callback(null, await sys.openNull());
+                        return;
+                    }
                     callback(null, await sys.openFile(path, flags, mode));
                 } catch (e) {
                     errback(callback, e);
