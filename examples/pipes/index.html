@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <script type="module" src="../../dist/wanix.min.js"></script>
+</head>
+<body style="height: 100vh; margin: 0; background: #111; color: #0f0; font-family: monospace; padding: 1em;">
+
+    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+        <wanix-bind type="fetch" dst="devnull.wasm" src="./devnull.wasm"></wanix-bind>
+        <wanix-task id="devnull" cmd="devnull.wasm" type="gojs" term start></wanix-task>
+        <wanix-term path="#task/devnull/term" style="height: 100%;"></wanix-term>
+    </wanix-system>
+
+</body>
+</html>
