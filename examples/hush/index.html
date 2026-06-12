@@ -16,13 +16,7 @@
         <wanix-bind dst="crush" src="#web/opfs"></wanix-bind>
         <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
 
-        <!-- fetch the rc.wasm file -->
-        <wanix-bind type="file" dst="rc.wasm" src="./rc.wasm"></wanix-bind>
-        <!-- run the rc.wasm file as a gojs task in the web directory -->
-
-        <!-- fetch bubbletea wasm into the namespace -->
-        <wanix-bind type="fetch" dst="counter" src="../bubbletea-counter/bubbletea.wasm" mode="0755"></wanix-bind>
-        <wanix-bind type="fetch" dst="sh.wasm" src="./gosh.wasm" mode="0755"></wanix-bind>
+        <!-- fetch hush wasm into the namespace -->
         <wanix-bind type="fetch" dst="hush" src="./hush.wasm" mode="0755"></wanix-bind>
 
         <!-- run bubbletea as gojs task with TERM_WINCH pointing to term's winch file -->

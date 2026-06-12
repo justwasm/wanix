@@ -15,14 +15,9 @@ echo "=== Building Bubbletea WASM ==="
 export PATH=/go/bin:$PATH
 $GOROOT/bin/go build -o /tmp/boba ./tools/build-bubbletea
 
-pushd rc
-go mod tidy
-/tmp/boba -o ../examples/repl-rc/rc.wasm ./cmd/rc 2>&1
-popd
-
 pushd hush
 go mod tidy
-/tmp/boba -o ../examples/repl-rc/hush.wasm . 2>&1
+GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build -o ../examples/hush/hush.wasm . 2>&1
 popd
 
 echo "=== Starting dev server ==="
