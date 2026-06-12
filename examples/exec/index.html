@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <script type="module" src="../../dist/wanix.min.js"></script>
+    <style>
+        body { height: 100vh; margin: 0; }
+    </style>
+</head>
+<body>
+
+    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+        <wanix-bind type="fetch" dst="exec.wasm" src="./exec.wasm"></wanix-bind>
+        <wanix-task id="demo" cmd="/exec.wasm" type="gojs" env="PATH=/" term start></wanix-task>
+        <wanix-term path="#task/demo/term" style="height: 100%;" no-scrollbar></wanix-term>
+    </wanix-system>
+
+</body>
+</html>
