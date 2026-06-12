@@ -491,6 +491,13 @@ function cleanpath(path) {
 			chdir(dir) {
                 globalThis.cwd = dir;
             },
+			kill(pid, sig) {
+				if (pid === globalThis.process.pid) {
+					self.close();
+					return;
+				}
+				sys.writeFile(`#task/${pid}/ctl`, "terminate").catch(() => {});
+			},
 		}
 	}
 

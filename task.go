@@ -281,6 +281,10 @@ func (r *Task) ResolveFS(ctx context.Context, name string) (fs.FS, string, error
 					}
 					return
 				}
+				if len(args) == 1 && args[0] == "terminate" {
+					Terminate(r)
+					return
+				}
 			},
 		}),
 		"id":   misc.FieldFile(r.ID()),
