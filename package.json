@@ -15,9 +15,10 @@
     "dependencies": {
         "@bjorn3/browser_wasi_shim": "^0.4.1",
         "@progrium/duplex": "^0.2.2",
-        "@xterm/addon-fit": "^0.11.0",
-        "@xterm/addon-clipboard": "^0.3.0-beta.285",
-        "@xterm/xterm": "^6.1.0-beta.285",
+        "@xterm/addon-fit": "^0.12.0-beta.287",
+        "@xterm/addon-clipboard": "^0.3.0-beta.287",
+        "@xterm/addon-image": "^0.10.0-beta.287",
+        "@xterm/xterm": "^6.1.0-beta.287",
         "cbor-x": "^1.6.0",
         "ws": "^8.21.0"
     }
