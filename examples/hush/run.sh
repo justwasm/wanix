@@ -17,7 +17,8 @@ $GOROOT/bin/go build -o /tmp/boba ./tools/build-bubbletea
 
 pushd hush
 go mod tidy
-GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build -o ../examples/hush/hush.wasm . 2>&1
+GOROOT=$GOROOT $GOROOT/bin/go tool tractor.dev/wanix/tools/build-bubbletea -o ../examples/hush/hush.wasm .
+# GOROOT=$GOROOT GOOS=js GOARCH=wasm $GOROOT/bin/go build -o ../examples/hush/hush.wasm . 2>&1
 popd
 
 echo "=== Starting dev server ==="

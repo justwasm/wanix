@@ -17,10 +17,99 @@
         <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
 
         <!-- fetch hush wasm into the namespace -->
-        <wanix-bind type="fetch" dst="hush" src="./hush.wasm" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="hush" src="https://w9y.up.railway.app/go/github.com/btwiuse/hush/cmd/hush@main" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="vim" src="https://w9y.up.railway.app/vimtea.wasm" mode="0755"></wanix-bind>
+
+        <wanix-bind type="fetch" dst="crush.wasm" src="https://w9y.up.railway.app/crush.wasm?1" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="w9y" src="https://w9y.up.railway.app/go/github.com/btwiuse/w9y/cmd/w9y@dc21bc5d2731bb33374530eb9da733400ed01841" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="esbuild" src="https://unpkg.com/esbuild-wasm@0.28.1/esbuild.wasm" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="tsgo" src="https://unpkg.com/tsgo-wasm@2026.6.14/tsgo.wasm" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="kitty" src="https://w9y.up.railway.app/go/github.com/justwasm/bubbletea/examples/kitty-image@v0.0.0-20260616151219-45919581ef8f" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="logo" src="https://w9y.up.railway.app/go/github.com/gearshell/logo/cmd/logo@latest" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="uuid" src="https://w9y.up.railway.app/go/gist.github.com/btwiuse/83e2efac358d22a009ece0a3f4feb801" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="kubectl" src="https://w9y.up.railway.app/go/github.com/justwasm/kubectl/cmd/kubectl@wasm" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="docker" src="https://w9y.up.railway.app/go/github.com/justwasm/docker/cmd/docker@3c4d257" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="git" src="https://w9y.up.railway.app/go/github.com/justwasm/git/cmd/gogit@latest" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="spinners" src="https://w9y.up.railway.app/tinygo/github.com/bubbletui/bubbletea/v2/examples/spinners@v2.0.9-0.20260617103906-d234b2836ab0" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="watgo" src="https://w9y.up.railway.app/go/github.com/eliben/watgo/cmd/watgo@v0.8.0" mode="0755"></wanix-bind>
+	
+	<!--
+        <wanix-bind type="fetch" dst="hush" src="./hush.wasm?t=3.3" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="hush" src="https://w9y.up.railway.app/hush.wasm?t=8.3" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="tsgo" src="https://w9y.up.railway.app/go/github.com/microsoft/typescript-go/cmd/tsgo@v0.0.0-20260613225106-551b02d6c10e" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="esbuild" src="https://w9y.up.railway.app/go/github.com/evanw/esbuild/cmd/esbuild@v0.28.1" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="hush" src="./hush.wasm?t=3.3" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="vim" src="./vimtea.wasm" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="crush.wasm" src="./crush.wasm?1" mode="0755"></wanix-bind>
+        <wanix-bind type="fetch" dst="counter" src="../bubbletea-counter/bubbletea.wasm" mode="0755"></wanix-bind>
+
+	<wanix-bind type="fetch" dst="altscreen-toggle" src="../bubbletea/examples/altscreen-toggle.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="autocomplete" src="../bubbletea/examples/autocomplete.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="canvas" src="../bubbletea/examples/canvas.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="capability" src="../bubbletea/examples/capability.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="cellbuffer" src="../bubbletea/examples/cellbuffer.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="chat" src="../bubbletea/examples/chat.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="clickable" src="../bubbletea/examples/clickable.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="colorprofile" src="../bubbletea/examples/colorprofile.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="composable-views" src="../bubbletea/examples/composable-views.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="cursor-style" src="../bubbletea/examples/cursor-style.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="debounce" src="../bubbletea/examples/debounce.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="doom-fire" src="../bubbletea/examples/doom-fire.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="dynamic-textarea" src="../bubbletea/examples/dynamic-textarea.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="exec" src="../bubbletea/examples/exec.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="eyes" src="../bubbletea/examples/eyes.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="file-picker" src="../bubbletea/examples/file-picker.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="focus-blur" src="../bubbletea/examples/focus-blur.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="fullscreen" src="../bubbletea/examples/fullscreen.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="glamour" src="../bubbletea/examples/glamour.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="help" src="../bubbletea/examples/help.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="http" src="../bubbletea/examples/http.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="isbn-form" src="../bubbletea/examples/isbn-form.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="keyboard-enhancements" src="../bubbletea/examples/keyboard-enhancements.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="list-default" src="../bubbletea/examples/list-default.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="list-fancy" src="../bubbletea/examples/list-fancy.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="list-simple" src="../bubbletea/examples/list-simple.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="mouse" src="../bubbletea/examples/mouse.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="package-manager" src="../bubbletea/examples/package-manager.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="pager" src="../bubbletea/examples/pager.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="paginator" src="../bubbletea/examples/paginator.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="pipe" src="../bubbletea/examples/pipe.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="prevent-quit" src="../bubbletea/examples/prevent-quit.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="print-key" src="../bubbletea/examples/print-key.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="progress-animated" src="../bubbletea/examples/progress-animated.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="progress-bar" src="../bubbletea/examples/progress-bar.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="progress-download" src="../bubbletea/examples/progress-download.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="progress-static" src="../bubbletea/examples/progress-static.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="query-term" src="../bubbletea/examples/query-term.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="realtime" src="../bubbletea/examples/realtime.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="result" src="../bubbletea/examples/result.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="send-msg" src="../bubbletea/examples/send-msg.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="sequence" src="../bubbletea/examples/sequence.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="set-terminal-color" src="../bubbletea/examples/set-terminal-color.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="set-window-title" src="../bubbletea/examples/set-window-title.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="simple" src="../bubbletea/examples/simple.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="space" src="../bubbletea/examples/space.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="spinner" src="../bubbletea/examples/spinner.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="spinners" src="../bubbletea/examples/spinners.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="splash" src="../bubbletea/examples/splash.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="split-editors" src="../bubbletea/examples/split-editors.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="stopwatch" src="../bubbletea/examples/stopwatch.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="suspend" src="../bubbletea/examples/suspend.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="table" src="../bubbletea/examples/table.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="table-resize" src="../bubbletea/examples/table-resize.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="tabs" src="../bubbletea/examples/tabs.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="textarea" src="../bubbletea/examples/textarea.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="textinput" src="../bubbletea/examples/textinput.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="textinputs" src="../bubbletea/examples/textinputs.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="timer" src="../bubbletea/examples/timer.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="tui-daemon-combo" src="../bubbletea/examples/tui-daemon-combo.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="vanish" src="../bubbletea/examples/vanish.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="views" src="../bubbletea/examples/views.wasm" mode="0755"></wanix-bind>
+<wanix-bind type="fetch" dst="window-size" src="../bubbletea/examples/window-size.wasm" mode="0755"></wanix-bind>
+	-->
 
         <!-- run bubbletea as gojs task with TERM_WINCH pointing to term's winch file -->
-        <wanix-task id="repl" cmd="hush" type="gojs" env="HOME=/crush PATH=/ CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 TERM_WINCH=winch" term start>
+        <wanix-task id="repl" cmd="hush" type="gojs" env="TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=1 HOME=/crush PATH=/ CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 TERM_WINCH=winch" term start>
             <wanix-bind dst="winch" src="#task/self/term/winch"></wanix-bind>
 	</wanix-task>
 
