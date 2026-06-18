@@ -48,8 +48,8 @@ func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
 		return
 	}
 
-	// Allocate child task
-	child, err := parent.Alloc("gojs")
+	// Allocate child task with auto-detection of WASM type
+	child, err := parent.Alloc("auto")
 	if err != nil {
 		r.Return(err)
 		return
