@@ -15,8 +15,15 @@ type Driver struct {
 }
 
 func (d *Driver) Check(t *wanix.Task) bool {
-	// todo: gojs detection
-	return strings.HasSuffix(t.Arg(0), ".wasm")
+	if !strings.HasSuffix(t.Arg(0), ".wasm") {
+		return false
+	}
+	f, err := t.NS().Open(t.Arg(0))
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	return wanix.DetectWASMKind(f) == "gojs"
 }
 
 func (d *Driver) Start(t *wanix.Task) error {
