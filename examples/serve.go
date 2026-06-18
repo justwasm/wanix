@@ -11,10 +11,8 @@ func main() {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
 		// Enable cross-origin isolation, needed for SharedArrayBuffer/WebAssembly threading/etc.
-		if r.Host == "localhost:7071" || r.Host == "127.0.0.1:7071" {
-			w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
-			w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
-		}
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
 
 		http.FileServer(http.Dir(".")).ServeHTTP(w, r)
 	}))
