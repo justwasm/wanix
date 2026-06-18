@@ -3,8 +3,6 @@
 package gojs
 
 import (
-	"strings"
-
 	"tractor.dev/wanix"
 	gojsworker "tractor.dev/wanix/gojs/worker"
 	"tractor.dev/wanix/web/worker"
@@ -15,11 +13,9 @@ type Driver struct {
 }
 
 func (d *Driver) Check(t *wanix.Task) bool {
-	if !strings.HasSuffix(t.Arg(0), ".wasm") {
-		return false
-	}
 	f, err := t.NS().Open(t.Arg(0))
 	if err != nil {
+		println("gojs.Check: open error", err.Error())
 		return false
 	}
 	defer f.Close()
