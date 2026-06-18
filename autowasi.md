@@ -67,3 +67,17 @@ api/spawn.go 收到 spawn RPC
 - **对 Go 程序透明**: `os/exec.Command("tinygo_app.wasm")` 自动走 wasi worker；`os/exec.Command("go_wasm_app.wasm")` 自动走 gojs worker
 - **无需改动 JS 侧**: `child_process.spawn` 的 JS 接口不变，所有改动在 Go 侧完成
 - **无额外依赖**: WASM 解析是标准格式，几十行代码即可完成
+
+## 实现状态
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| `wasmdetect.go` — WASM 二进制检测 | ✅ | 解析 import section 区分 wasi/gojs |
+| `api/spawn.go` — `"auto"` driver | ✅ | 替代硬编码 `"gojs"` |
+| `gojs/driver.go` — 真实 Check() | ✅ | 调用 DetectWASMKind |
+| `wasi/driver.go` — 真实 Check() | ✅ | 调用 DetectWASMKind |
+| `task.go fdFS` — `#task/{id}/fd/{n}` 路径 | ✅ | 暴露 FD 表为目录，同时保留 VFS fallback |
+
+### 已知差异（待修复）
+
+见 `wasi-diff.md` 完整列表，关键项：stdin、process.pid、工作目录、cleanpath、child_process.spawn。

@@ -227,21 +227,21 @@ func (r *Task) FD(fd int) (fs.File, string, error) {
 	if fd < 0 || fd > r.fdIdx {
 		return nil, "", fs.ErrInvalid
 	}
+	// Restore the VFS path fallback for fds < 3. This is needed when
+	// the fd was registered via namespace bind (e.g. term "pipe" mode in
+	// spawn.go) rather than SetFD. The fdFS never locks Task.mu, so
+	// re-entering through the NS won't deadlock.
 	if fd < 3 {
 		// Check SetFD-registered fds first (for spawned child tasks)
 		if existing, ok := r.fds[fd]; ok {
 			return existing.file, existing.path, nil
 		}
 		// Fallback: try the VFS path (#task/{id}/fd/{n}) which exists
-		// for tasks with terminal bindings. If it fails, create a nullFile
-		// so writes don't error out.
-		name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
-		stdfile, err := r.NS().Open(name)
-		if err == nil {
-			r.fds[fd] = &openFile{file: stdfile, path: name}
-			return stdfile, name, nil
+		// for tasks with terminal/term bindings.
+		if f, _, err := r.VFSOpen(fd); err == nil && f != nil {
+			return f, "", nil
 		}
-		// VFS path failed — register a nullFile to avoid FD errors
+		// VFS path failed — create a nullFile so writes don't error out.
 		r.fds[fd] = &openFile{file: &nullFile{}, path: "/dev/null"}
 		return r.fds[fd].file, r.fds[fd].path, nil
 	}
@@ -333,6 +333,7 @@ func (r *Task) ResolveFS(ctx context.Context, name string) (fs.FS, string, error
 			return fskit.Entry("binds", 0555, []byte(r.NS().String()+"\n")).Open(name)
 		}),
 		"ns": r.ns,
+		"fd": &fdFS{task: r},
 	}
 	if r.export != nil {
 		m["export"] = r.export
@@ -346,6 +347,43 @@ func (r *Task) OpenContext(ctx context.Context, name string) (fs.File, error) {
 		return nil, err
 	}
 	return fs.OpenContext(ctx, fsys, rname)
+}
+
+// fdFS exposes a task's FD table as a filesystem directory.
+// Opening "fd/<n>" returns the file registered at fd <n>.
+type fdFS struct {
+	task *Task
+}
+
+func (f *fdFS) Open(name string) (fs.File, error) {
+	if name == "." {
+		return fskit.Entry("fd", 0555|fs.ModeDir).Open(".")
+	}
+	fd, err := strconv.Atoi(name)
+	if err != nil {
+		return nil, fs.ErrNotExist
+	}
+	// No lock: fds is only written during setup (SetFD) and read afterwards.
+	// The caller (Task.FD VFS fallback) already holds r.mu, so locking here
+	// would deadlock.
+	of, ok := f.task.fds[fd]
+	if !ok || of == nil {
+		return nil, fs.ErrNotExist
+	}
+	return of.file, nil
+}
+
+// VFSOpen opens an fd path through the task's namespace.
+// Used by Task.FD() as fallback for term/pipe bindings.
+// Caller must hold r.mu.
+func (r *Task) VFSOpen(fd int) (fs.File, string, error) {
+	name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
+	f, err := r.NS().Open(name)
+	if err != nil {
+		return nil, "", err
+	}
+	r.fds[fd] = &openFile{file: f, path: name}
+	return f, name, nil
 }
 
 type TaskFS struct {
