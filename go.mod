@@ -8,7 +8,7 @@ replace golang.org/x/sys => github.com/progrium/sys-wasm v0.0.0-20240620081741-5
 
 // patch on top of the feature/cbor-tinygo-beta branch
 // based on https://github.com/fxamacker/cbor/issues/686
-replace github.com/fxamacker/cbor/v2 => ./misc/cbor
+replace github.com/fxamacker/cbor/v2 => github.com/justwasm/cbor/v2 v2.9.0
 
 // local checkout with fix for mux "invalid channel" bug (session.go:onePacket)
 replace tractor.dev/toolkit-go => github.com/justwasm/toolkit-go v0.0.0-20260606123829-ed3ab2dc842d
