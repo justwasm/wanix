@@ -170,3 +170,67 @@ func TestWinchBroadcast(t *testing.T) {
 		t.Fatalf("r1=%q r2=%q", s1, s2)
 	}
 }
+
+func TestWinchLastValue(t *testing.T) {
+	ctx := context.Background()
+	s := New(nil)
+	newf, err := fs.OpenContext(ctx, s, "new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newf.Read(make([]byte, 8)); err != nil {
+		t.Fatal(err)
+	}
+	newf.Close()
+
+	// write to winch first, before any reader
+	w, err := fs.OpenFile(s, "1/winch", os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	if _, err := w.(io.Writer).Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+
+	// now open a reader — it should get the last value immediately
+	r, err := fs.OpenContext(ctx, s, "1/winch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	b := make([]byte, 16)
+	n, err := r.Read(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b[:n]) != "hello" {
+		t.Fatalf("got %q, want %q", b[:n], "hello")
+	}
+
+	// write a new value, reader that opens later gets the latest
+	w2, err := fs.OpenFile(s, "1/winch", os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w2.Close()
+	if _, err := w2.(io.Writer).Write([]byte("world")); err != nil {
+		t.Fatal(err)
+	}
+
+	r2, err := fs.OpenContext(ctx, s, "1/winch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Close()
+
+	b2 := make([]byte, 16)
+	n2, err := r2.Read(b2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b2[:n2]) != "world" {
+		t.Fatalf("got %q, want %q", b2[:n2], "world")
+	}
+}

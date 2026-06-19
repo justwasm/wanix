@@ -8,10 +8,13 @@ const NoExclude int64 = -1
 // Broadcaster fans out byte frames to multiple subscribers. Each subscriber
 // has a buffered channel; writers block on full buffers. It is a general
 // primitive for pub/sub style signals (for example terminal SIGWINCH payloads).
+// The Broadcaster also caches the last broadcast value; new subscribers
+// immediately receive it so readers always see the current state first.
 type Broadcaster struct {
 	mu      sync.Mutex
 	readers map[int64]chan []byte
 	nextID  int64
+	last    []byte // last broadcast value, delivered to new subscribers
 }
 
 // NewBroadcaster returns an empty broadcaster.
@@ -20,12 +23,17 @@ func NewBroadcaster() *Broadcaster {
 }
 
 // AddReader registers a subscriber and returns an id and delivery channel.
+// If a last broadcast value exists it is delivered immediately so the new
+// reader sees the current state without waiting for the next write.
 func (b *Broadcaster) AddReader() (id int64, ch chan []byte) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.nextID++
 	id = b.nextID
 	ch = make(chan []byte, 64)
+	if b.last != nil {
+		ch <- append([]byte(nil), b.last...)
+	}
 	b.readers[id] = ch
 	return id, ch
 }
@@ -41,8 +49,10 @@ func (b *Broadcaster) RemoveReader(id int64) {
 }
 
 // Broadcast delivers a copy of data to every subscriber except exclude when exclude >= 0.
+// The last broadcast value is cached so future subscribers see the current state immediately.
 func (b *Broadcaster) Broadcast(data []byte, exclude int64) {
 	b.mu.Lock()
+	b.last = append([]byte(nil), data...)
 	var targets []chan []byte
 	for id, ch := range b.readers {
 		if exclude >= 0 && id == exclude {
@@ -65,6 +75,7 @@ func (b *Broadcaster) Close() {
 		close(ch)
 	}
 	b.readers = make(map[int64]chan []byte)
+	b.last = nil
 }
 
 // SubscriberCount returns the number of active reader subscriptions.
