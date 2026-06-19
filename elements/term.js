@@ -66,6 +66,16 @@ export class TerminalElement extends WanixElement {
         this.dataset.rows = this._term.rows;
         this.dataset.xpixel = this.offsetWidth;
         this.dataset.ypixel = this.offsetHeight;
+
+        // seed winch with initial size as early as possible. if the VFS
+        // isn't ready yet the write fails silently; _awake() retries it.
+        if (this.path) {
+            this._system.root.openWritable(this.path + "/winch").then(w => {
+                const writer = w.getWriter();
+                writer.write(new TextEncoder().encode(`${this._term.cols} ${this._term.rows} ${this.offsetWidth} ${this.offsetHeight}\n`));
+                writer.close();
+            }).catch(() => {});
+        }
     }
     
 
