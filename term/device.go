@@ -2,7 +2,9 @@ package term
 
 import (
 	"context"
+	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	"tractor.dev/wanix"
@@ -55,20 +57,27 @@ func (d *Device) ResolveFS(ctx context.Context, name string) (fs.FS, string, err
 	return fs.Resolve(fskit.UnionFS{
 		fskit.MapFS{
 			"new": fskit.OpenFunc(func(ctx context.Context, name string) (fs.File, error) {
-				if name == "." {
-					return &fskit.FuncFile{
-						Node: fskit.Entry(name, 0555),
-						ReadFunc: func(n *fskit.Node) error {
-							rid, err := d.Alloc()
-							if err != nil {
-								return err
+				return &fskit.FuncFile{
+					Node: fskit.Entry(name, 0555),
+					ReadFunc: func(n *fskit.Node) error {
+						// parse optional initial dimensions from path:
+						//   #term/new            → no initial value
+						//   #term/new/cols/rows/xpixel/ypixel → seed winch
+						var initData []byte
+						if name != "." {
+							parts := strings.SplitN(name, "/", 4)
+							if len(parts) == 4 {
+								initData = []byte(fmt.Sprintf("%s %s %s %s\n", parts[0], parts[1], parts[2], parts[3]))
 							}
-							fskit.SetData(n, []byte(rid+"\n"))
-							return nil
-						},
-					}, nil
-				}
-				return nil, fs.ErrNotExist
+						}
+						rid, err := d.Alloc(initData)
+						if err != nil {
+							return err
+						}
+						fskit.SetData(n, []byte(rid+"\n"))
+						return nil
+					},
+				}, nil
 			}),
 		},
 		fskit.MapFS(d.resources),
@@ -85,7 +94,7 @@ func (d *Device) Get(rid string) (*Resource, error) {
 	return res.(*Resource), nil
 }
 
-func (d *Device) Alloc() (rid string, err error) {
+func (d *Device) Alloc(initData ...[]byte) (rid string, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -95,6 +104,9 @@ func (d *Device) Alloc() (rid string, err error) {
 	d.nextID++
 	rid = strconv.Itoa(d.nextID)
 	hub := signal.NewBroadcaster()
+	if len(initData) > 0 && len(initData[0]) > 0 {
+		hub.Broadcast(initData[0], signal.NoExclude)
+	}
 	_, dataPF, progPF := pipe.NewFS(true)
 	// remove := func() {
 	// 	d.remove(rid)

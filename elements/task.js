@@ -63,7 +63,18 @@ export class TaskElement extends WanixElement {
         await this.root.bind(this.path, `${this._taskpath}/self`);
 
         if (this._term) {
-            const termID = (await this._system.root.readText([this._termpath, "new"].join("/"))).trim();
+            // pass initial terminal dimensions from the DOM term element
+            // through the allocation path so winch gets seeded at creation
+            let dims = "";
+            if (this.id) {
+                const termPath = `#task/${this.id}/term`;
+                const termEl = Array.from(document.querySelectorAll('wanix-term'))
+                    .find(el => el.getAttribute('path') === termPath);
+                if (termEl && termEl.dataset.cols) {
+                    dims = `/${termEl.dataset.cols}/${termEl.dataset.rows}/${termEl.dataset.xpixel || 0}/${termEl.dataset.ypixel || 0}`;
+                }
+            }
+            const termID = (await this._system.root.readText([this._termpath, "new" + dims].join("/"))).trim();
             this.term = [this._termpath, termID].join("/");
             // should this binding be done in task vfs?
             await this._system.root.bind(this.term, [this.path, "term"].join("/"));
