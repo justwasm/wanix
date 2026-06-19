@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -41,8 +42,7 @@ func (m model) View() tea.View {
 	if w == 0 {
 		w = 80
 	}
-	xpixel, _ := strconv.Atoi(os.Getenv("WANIX_XPIXEL"))
-	ypixel, _ := strconv.Atoi(os.Getenv("WANIX_YPIXEL"))
+	xpixel, ypixel := readPixels()
 	return tea.View{
 		Content: fmt.Sprintf(`
 Bubbletea in wanix!
@@ -60,15 +60,40 @@ pixels: %dx%d
 	}
 }
 
+// readPixels opens the winch file and reads the current xpixel/ypixel values.
+// The winch file returns "COLS ROWS XPIXEL YPIXEL" so every read gives the
+// latest terminal pixel dimensions without needing WANIX_XPIXEL env vars.
+func readPixels() (int, int) {
+	winchPath := os.Getenv("TERM_WINCH")
+	if winchPath == "" {
+		return 0, 0
+	}
+	f, err := os.Open(winchPath)
+	if err != nil {
+		return 0, 0
+	}
+	defer f.Close()
+	buf := make([]byte, 64)
+	n, err := f.Read(buf)
+	if err != nil {
+		return 0, 0
+	}
+	parts := strings.Fields(string(buf[:n]))
+	if len(parts) >= 4 {
+		x, _ := strconv.Atoi(parts[2])
+		y, _ := strconv.Atoi(parts[3])
+		return x, y
+	}
+	return 0, 0
+}
+
 func main() {
 	os.Setenv("TERM", "xterm-256color")
 	os.Setenv("COLORTERM", "truecolor")
 
-	// read initial terminal dimensions from env (set by task.js from term element)
-	initCols, _ := strconv.Atoi(os.Getenv("WANIX_COLS"))
-	initRows, _ := strconv.Atoi(os.Getenv("WANIX_ROWS"))
-
-	p := tea.NewProgram(model{width: initCols, height: initRows},
+	// initial terminal dimensions come from winch (handled by the
+	// bubbletea js/wasm stub in initInput), so we pass 0,0 here.
+	p := tea.NewProgram(model{},
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(os.Stdout),
 	)
