@@ -49,18 +49,6 @@ export class TaskElement extends WanixElement {
 
         await this._system.root.writeFile([this.path, "cmd"].join("/"), this.cmd);
 
-        // inject initial terminal dimensions into env
-        if (this.id) {
-            // find the term element whose path matches this task's term
-            const termPath = `#task/${this.id}/term`;
-            const termEl = Array.from(document.querySelectorAll('wanix-term'))
-                .find(el => el.getAttribute('path') === termPath);
-            if (termEl && termEl.dataset.cols && termEl.dataset.rows) {
-                const suffix = `WANIX_ROWS=${termEl.dataset.rows}\nWANIX_COLS=${termEl.dataset.cols}\nWANIX_XPIXEL=${termEl.dataset.xpixel || 0}\nWANIX_YPIXEL=${termEl.dataset.ypixel || 0}`;
-                this.env = (this.env ? this.env + "\n" : "") + suffix;
-            }
-        }
-
         if (this.env) {
             await this._system.root.writeFile([this.path, "env"].join("/"), this.env);
         }
