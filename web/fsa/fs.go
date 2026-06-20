@@ -497,11 +497,8 @@ func (fsys *FS) Rename(oldname, newname string) error {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
 	}
 
-	// Handle metadata for rename: copy metadata from old to new path, then delete old
-	if metadata, exists := Metadata().GetMetadata(oldname); exists {
-		Metadata().SetMetadata(newname, metadata)
-	}
-	Metadata().DeleteMetadata(oldname)
+	// Handle metadata for rename: move all entries (file or directory tree)
+	Metadata().RenamePrefix(oldname, newname)
 
 	// Invalidate both paths in cache
 	fsys.invalidateCachedStat(oldname)
