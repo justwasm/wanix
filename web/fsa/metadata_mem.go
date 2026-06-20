@@ -3,6 +3,7 @@
 package fsa
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +19,8 @@ type FileMetadata struct {
 
 // MetadataStore manages file metadata in memory only (no persistence)
 type MetadataStore struct {
-	data sync.Map // path -> FileMetadata
+	mu   sync.RWMutex
+	data map[string]FileMetadata
 }
 
 var metadataSingleton *MetadataStore
@@ -27,7 +29,9 @@ var metadataOnce sync.Once
 // Metadata returns the global metadata store singleton
 func Metadata() *MetadataStore {
 	metadataOnce.Do(func() {
-		metadataSingleton = &MetadataStore{}
+		metadataSingleton = &MetadataStore{
+			data: make(map[string]FileMetadata),
+		}
 	})
 	return metadataSingleton
 }
@@ -39,49 +43,100 @@ func (ms *MetadataStore) Initialize(opfsRoot *FS) error {
 
 // GetMetadata retrieves metadata for a path
 func (ms *MetadataStore) GetMetadata(path string) (FileMetadata, bool) {
-	if val, ok := ms.data.Load(path); ok {
-		return val.(FileMetadata), true
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	if ms.data == nil {
+		return FileMetadata{}, false
 	}
-	return FileMetadata{}, false
+	meta, ok := ms.data[path]
+	return meta, ok
 }
 
 // SetMetadata stores metadata for a path
 func (ms *MetadataStore) SetMetadata(path string, metadata FileMetadata) {
-	ms.data.Store(path, metadata)
+	ms.mu.Lock()
+	if ms.data == nil {
+		ms.data = make(map[string]FileMetadata)
+	}
+	ms.data[path] = metadata
+	ms.mu.Unlock()
 }
 
 // SetMode updates only the mode for a path
 func (ms *MetadataStore) SetMode(path string, mode fs.FileMode) {
-	metadata, exists := ms.GetMetadata(path)
-	if !exists {
-		metadata = FileMetadata{
+	ms.mu.Lock()
+	if ms.data == nil {
+		ms.data = make(map[string]FileMetadata)
+	}
+	meta, ok := ms.data[path]
+	if !ok {
+		meta = FileMetadata{
 			Mode:  mode,
 			Mtime: time.Now(),
 			Atime: time.Now(),
 		}
 	} else {
-		metadata.Mode = mode
+		meta.Mode = mode
 	}
-	ms.SetMetadata(path, metadata)
+	ms.data[path] = meta
+	ms.mu.Unlock()
 }
 
 // SetTimes updates mtime and atime for a path
 func (ms *MetadataStore) SetTimes(path string, atime, mtime time.Time) {
-	metadata, exists := ms.GetMetadata(path)
-	if !exists {
-		metadata = FileMetadata{
+	ms.mu.Lock()
+	if ms.data == nil {
+		ms.data = make(map[string]FileMetadata)
+	}
+	meta, ok := ms.data[path]
+	if !ok {
+		meta = FileMetadata{
 			Mode:  DefaultFileMode,
 			Mtime: mtime,
 			Atime: atime,
 		}
 	} else {
-		metadata.Mtime = mtime
-		metadata.Atime = atime
+		meta.Mtime = mtime
+		meta.Atime = atime
 	}
-	ms.SetMetadata(path, metadata)
+	ms.data[path] = meta
+	ms.mu.Unlock()
 }
 
 // DeleteMetadata removes metadata for a path
 func (ms *MetadataStore) DeleteMetadata(path string) {
-	ms.data.Delete(path)
+	ms.mu.Lock()
+	if ms.data == nil {
+		ms.data = make(map[string]FileMetadata)
+	}
+	delete(ms.data, path)
+	ms.mu.Unlock()
+}
+
+// RenamePrefix moves all metadata entries rooted at oldPrefix to newPrefix.
+// Returns the number of entries moved.
+func (ms *MetadataStore) RenamePrefix(oldPrefix, newPrefix string) int {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	count := 0
+	for path, meta := range ms.data {
+		if path == oldPrefix || strings.HasPrefix(path, oldPrefix+"/") {
+			newPath := newPrefix + strings.TrimPrefix(path, oldPrefix)
+			ms.data[newPath] = meta
+			delete(ms.data, path)
+			count++
+		}
+	}
+	return count
+}
+
+// DeletePrefix removes all metadata entries with the given path prefix.
+func (ms *MetadataStore) DeletePrefix(prefix string) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	for path := range ms.data {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			delete(ms.data, path)
+		}
+	}
 }
