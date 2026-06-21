@@ -11,11 +11,7 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
 var __commonJS = (cb, mod) => function __require2() {
-  try {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-  } catch (e) {
-    throw mod = 0, e;
-  }
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -3954,6 +3950,23 @@ var Conn = class {
 };
 
 // api/handle.js
+function cleanpath(path) {
+  if (path.startsWith("./")) path = path.slice(2);
+  if (path === "/") return ".";
+  path = path.replace(/\/+/g, "/");
+  const parts = path.split("/");
+  const stack = [];
+  for (const p of parts) {
+    if (p === "" || p === ".") continue;
+    if (p === "..") {
+      if (stack.length > 0) stack.pop();
+      continue;
+    }
+    stack.push(p);
+  }
+  path = stack.join("/");
+  return path || ".";
+}
 var WanixHandle = class {
   constructor(portOrConn) {
     let conn;
@@ -3967,31 +3980,40 @@ var WanixHandle = class {
     this.logger = () => null;
   }
   async readDir(name) {
+    name = cleanpath(name);
     this.logger(`readDir ${name}`);
     return (await this.peer.call("ReadDir", [name])).value;
   }
   async makeDir(name) {
+    name = cleanpath(name);
     this.logger(`makeDir ${name}`);
     await this.peer.call("Mkdir", [name]);
   }
   async makeDirAll(name) {
+    name = cleanpath(name);
     this.logger(`makeDirAll ${name}`);
     await this.peer.call("MkdirAll", [name]);
   }
   async bind(name, newname) {
-    this.logger(`unbind ${name} ${newname}`);
+    name = cleanpath(name);
+    newname = cleanpath(newname);
+    this.logger(`bind ${name} ${newname}`);
     await this.peer.call("Bind", [name, newname]);
   }
   async unbind(name, newname) {
+    name = cleanpath(name);
+    newname = cleanpath(newname);
     this.logger(`unbind ${name} ${newname}`);
     await this.peer.call("Unbind", [name, newname]);
   }
   async readFile(name) {
+    name = cleanpath(name);
     this.logger(`readFile ${name}`);
     return (await this.peer.call("ReadFile", [name])).value;
   }
   // not sure if readFile approach is good, but this is an option for now
   async readFile2(name) {
+    name = cleanpath(name);
     this.logger(`readFile2 ${name}`);
     const rd = await this.openReadable(name);
     const response = new Response(rd);
@@ -4001,14 +4023,17 @@ var WanixHandle = class {
     return new TextDecoder().decode(await this.readFile(name));
   }
   async waitFor(name, timeoutMs = 1e3) {
+    name = cleanpath(name);
     this.logger(`waitFor ${name} ${timeoutMs}ms`);
     await this.peer.call("WaitFor", [name, timeoutMs]);
   }
   async stat(name) {
+    name = cleanpath(name);
     this.logger(`stat ${name}`);
     return (await this.peer.call("Stat", [name])).value;
   }
   async writeFile(name, contents) {
+    name = cleanpath(name);
     this.logger(`writeFile ${name} len(${contents.length})`);
     if (typeof contents === "string") {
       contents = new TextEncoder().encode(contents);
@@ -4016,6 +4041,7 @@ var WanixHandle = class {
     return (await this.peer.call("WriteFile", [name, contents])).value;
   }
   async appendFile(name, contents) {
+    name = cleanpath(name);
     this.logger(`appendFile ${name} len(${contents.length})`);
     if (typeof contents === "string") {
       contents = new TextEncoder().encode(contents);
@@ -4023,34 +4049,44 @@ var WanixHandle = class {
     return (await this.peer.call("AppendFile", [name, contents])).value;
   }
   async rename(oldname, newname) {
+    oldname = cleanpath(oldname);
+    newname = cleanpath(newname);
     this.logger(`rename ${oldname} ${newname}`);
     await this.peer.call("Rename", [oldname, newname]);
   }
   async copy(oldname, newname) {
+    oldname = cleanpath(oldname);
+    newname = cleanpath(newname);
     this.logger(`copy ${oldname} ${newname}`);
     await this.peer.call("Copy", [oldname, newname]);
   }
   async remove(name) {
+    name = cleanpath(name);
     this.logger(`remove ${name}`);
     await this.peer.call("Remove", [name]);
   }
   async removeAll(name) {
+    name = cleanpath(name);
     this.logger(`removeAll ${name}`);
     await this.peer.call("RemoveAll", [name]);
   }
   async truncate(name, size) {
+    name = cleanpath(name);
     this.logger(`truncate ${name} ${size}`);
     await this.peer.call("Truncate", [name, size]);
   }
   async create(name) {
+    name = cleanpath(name);
     this.logger(`create ${name}`);
     return (await this.peer.call("Create", [name])).value;
   }
   async open(name) {
+    name = cleanpath(name);
     this.logger(`open ${name}`);
     return (await this.peer.call("Open", [name])).value;
   }
   async openFile(name, flags, mode) {
+    name = cleanpath(name);
     this.logger(`openFile ${name} ${flags} ${mode}`);
     return (await this.peer.call("OpenFile", [name, flags, mode])).value;
   }
@@ -4083,14 +4119,17 @@ var WanixHandle = class {
     return (await this.peer.call("Fstat", [fd])).value;
   }
   async lstat(name) {
+    name = cleanpath(name);
     this.logger(`lstat ${name}`);
     return (await this.peer.call("Lstat", [name])).value;
   }
   async chmod(name, mode) {
+    name = cleanpath(name);
     this.logger(`chmod ${name} ${mode}`);
     await this.peer.call("Chmod", [name, mode]);
   }
   async chown(name, uid, gid) {
+    name = cleanpath(name);
     this.logger(`chown ${name} ${uid} ${gid}`);
     await this.peer.call("Chown", [name, uid, gid]);
   }
@@ -4111,18 +4150,23 @@ var WanixHandle = class {
     await this.peer.call("Flock", [fd, how]);
   }
   async readlink(name) {
+    name = cleanpath(name);
     this.logger(`readlink ${name}`);
     return (await this.peer.call("Readlink", [name])).value;
   }
   async symlink(oldname, newname) {
+    oldname = cleanpath(oldname);
+    newname = cleanpath(newname);
     this.logger(`symlink ${oldname} ${newname}`);
     await this.peer.call("Symlink", [oldname, newname]);
   }
   async chtimes(name, atime, mtime) {
+    name = cleanpath(name);
     this.logger(`chtimes ${name} ${atime} ${mtime}`);
     await this.peer.call("Chtimes", [name, atime, mtime]);
   }
   async spawn(name, args, opts) {
+    name = cleanpath(name);
     this.logger(`spawn ${name}`);
     return (await this.peer.call("Spawn", [name, args, opts])).value;
   }
