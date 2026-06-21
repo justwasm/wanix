@@ -102,7 +102,7 @@ class SABPort {
 }
 `
 
-var sabPortEvaled bool
+var sabPortCtor js.Value
 
 // CreateSABPort creates a SharedArrayBuffer and a SABPort JS instance.
 // Returns the SAB (for transfer to a Worker), an io.ReadCloser, and an io.WriteCloser.
@@ -111,17 +111,18 @@ func CreateSABPort(bufSize int) (sab js.Value, rd io.ReadCloser, wr io.WriteClos
 		bufSize = 131072 // 128KB default
 	}
 
-	// Evaluate SABPort class once
-	if !sabPortEvaled {
-		js.Global().Call("eval", SABPortJS)
-		sabPortEvaled = true
+	// Evaluate SABPort class once and hold the constructor reference.
+	// We use eval returning the class (by appending "\nSABPort") instead of
+	// looking it up from global scope, which may not work in all contexts.
+	if sabPortCtor.IsUndefined() {
+		sabPortCtor = js.Global().Call("eval", SABPortJS+"\nSABPort")
 	}
 
 	// Create SharedArrayBuffer
 	sab = js.Global().Get("SharedArrayBuffer").New(bufSize)
 
 	// Create SABPort instance
-	port := js.Global().Get("SABPort").New(sab)
+	port := sabPortCtor.New(sab)
 
 	rd = &SABReadCloser{port: port, rbuf: js.Global().Get("Uint8Array").New(65528)}
 	wr = &SABWriteCloser{port: port, wbuf: js.Global().Get("Uint8Array").New(65528)}
