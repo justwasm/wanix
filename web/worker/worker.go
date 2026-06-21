@@ -80,7 +80,8 @@ func (r *Resource) Start(args ...string) error {
 
 	wanix.SetWorker(r.task, r.worker)
 
-	port := sys.Element().Call("_openPort", r.task.ID())
+	// Use SharedArrayBuffer for gojs workers, MessagePort for others
+	sab := sys.Element().Call("_openSABPort", r.task.ID())
 	p9 := sys.Element().Call("_open9P", r.task.ID())
 
 	r.worker.Call("addEventListener", "message", js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -133,12 +134,12 @@ func (r *Resource) Start(args ...string) error {
 	r.worker.Call("postMessage", map[string]any{"worker": map[string]any{
 		"id":   r.id,
 		"tid":  r.task.ID(),
-		"port": port,
+		"sab":  sab,
 		"p9":   p9,
 		"cmd":  strings.Join(args, " "),
 		"env":  env,
 		"url":  url,
-	}}, []any{port, p9})
+	}}, []any{p9})
 
 	r.state = "running"
 	return nil

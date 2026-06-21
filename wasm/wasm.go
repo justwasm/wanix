@@ -85,6 +85,28 @@ func main() {
 		return ch.Get("port2")
 	}))
 
+	el.Set("_openSABPort", js.FuncOf(func(this js.Value, args []js.Value) any {
+		sab, rd, wr, err := jsutil.CreateSABPort(0)
+		if err != nil {
+			log.Fatal(err)
+		}
+		sess, err := mux.DialIO(wr, rd)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func(sess mux.Session, args []js.Value) {
+			task := root
+			if len(args) > 0 {
+				t, err := root.Lookup(args[0].String())
+				if err == nil {
+					task = t
+				}
+			}
+			api.Responder(sess, task)
+		}(sess, args)
+		return sab
+	}))
+
 	el.Set("_open9P", js.FuncOf(func(this js.Value, args []js.Value) any {
 		ch := NewP9Channel()
 
