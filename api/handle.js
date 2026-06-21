@@ -1,5 +1,20 @@
 import * as duplex from "@progrium/duplex";
 
+function cleanpath(path) {
+    if (path.startsWith("./")) path = path.slice(2);
+    if (path === "/") return ".";
+    path = path.replace(/\/+/g, '/');
+    const parts = path.split('/');
+    const stack = [];
+    for (const p of parts) {
+        if (p === "" || p === ".") continue;
+        if (p === "..") { if (stack.length > 0) stack.pop(); continue; }
+        stack.push(p);
+    }
+    path = stack.join('/');
+    return path || ".";
+}
+
 export class WanixHandle {
     constructor(portOrConn) {
         let conn;
@@ -14,37 +29,46 @@ export class WanixHandle {
     }
 
     async readDir(name) {
+        name = cleanpath(name);
         this.logger(`readDir ${name}`);
         return (await this.peer.call("ReadDir", [name])).value;
     }
 
     async makeDir(name) {
+        name = cleanpath(name);
         this.logger(`makeDir ${name}`);
         await this.peer.call("Mkdir", [name]);
     }
 
     async makeDirAll(name) {
+        name = cleanpath(name);
         this.logger(`makeDirAll ${name}`);
         await this.peer.call("MkdirAll", [name]);
     }
 
     async bind(name, newname) {
-        this.logger(`unbind ${name} ${newname}`);
+        name = cleanpath(name);
+        newname = cleanpath(newname);
+        this.logger(`bind ${name} ${newname}`);
         await this.peer.call("Bind", [name, newname]);
     }
 
     async unbind(name, newname) {
+        name = cleanpath(name);
+        newname = cleanpath(newname);
         this.logger(`unbind ${name} ${newname}`);
         await this.peer.call("Unbind", [name, newname]);
     }
     
     async readFile(name) {
+        name = cleanpath(name);
         this.logger(`readFile ${name}`);
         return (await this.peer.call("ReadFile", [name])).value;
     }
 
     // not sure if readFile approach is good, but this is an option for now
     async readFile2(name) {
+        name = cleanpath(name);
         this.logger(`readFile2 ${name}`);
         const rd = await this.openReadable(name);
         const response = new Response(rd); // cute trick
@@ -56,16 +80,19 @@ export class WanixHandle {
     }
 
     async waitFor(name, timeoutMs=1000) {
+        name = cleanpath(name);
         this.logger(`waitFor ${name} ${timeoutMs}ms`);
         await this.peer.call("WaitFor", [name, timeoutMs]);
     }
 
     async stat(name) {
+        name = cleanpath(name);
         this.logger(`stat ${name}`);
         return (await this.peer.call("Stat", [name])).value;
     }
 
     async writeFile(name, contents) {
+        name = cleanpath(name);
         this.logger(`writeFile ${name} len(${contents.length})`);
         if (typeof contents === "string") {
             contents = (new TextEncoder()).encode(contents);
@@ -74,6 +101,7 @@ export class WanixHandle {
     }
 
     async appendFile(name, contents) {
+        name = cleanpath(name);
         this.logger(`appendFile ${name} len(${contents.length})`);
         if (typeof contents === "string") {
             contents = (new TextEncoder()).encode(contents);
@@ -82,41 +110,51 @@ export class WanixHandle {
     }
 
     async rename(oldname, newname) {
+        oldname = cleanpath(oldname);
+        newname = cleanpath(newname);
         this.logger(`rename ${oldname} ${newname}`);
         await this.peer.call("Rename", [oldname, newname]);
     }
 
     async copy(oldname, newname) {
+        oldname = cleanpath(oldname);
+        newname = cleanpath(newname);
         this.logger(`copy ${oldname} ${newname}`);
         await this.peer.call("Copy", [oldname, newname]);
     }
 
     async remove(name) {
+        name = cleanpath(name);
         this.logger(`remove ${name}`);
         await this.peer.call("Remove", [name]);
     }
 
     async removeAll(name) {
+        name = cleanpath(name);
         this.logger(`removeAll ${name}`);
         await this.peer.call("RemoveAll", [name]);
     }
 
     async truncate(name, size) {
+        name = cleanpath(name);
         this.logger(`truncate ${name} ${size}`);
         await this.peer.call("Truncate", [name, size]);
     }
 
     async create(name) {
+        name = cleanpath(name);
         this.logger(`create ${name}`);
         return (await this.peer.call("Create", [name])).value;
     }
 
     async open(name) {
+        name = cleanpath(name);
         this.logger(`open ${name}`);
         return (await this.peer.call("Open", [name])).value;
     }
 
     async openFile(name, flags, mode) {
+        name = cleanpath(name);
         this.logger(`openFile ${name} ${flags} ${mode}`);
         return (await this.peer.call("OpenFile", [name, flags, mode])).value;
     }
@@ -157,16 +195,19 @@ export class WanixHandle {
     }
 
     async lstat(name) {
+        name = cleanpath(name);
         this.logger(`lstat ${name}`);
         return (await this.peer.call("Lstat", [name])).value;
     }
 
     async chmod(name, mode) {
+        name = cleanpath(name);
         this.logger(`chmod ${name} ${mode}`);
         await this.peer.call("Chmod", [name, mode]);
     }
 
     async chown(name, uid, gid) {
+        name = cleanpath(name);
         this.logger(`chown ${name} ${uid} ${gid}`);
         await this.peer.call("Chown", [name, uid, gid]);
     }
@@ -192,21 +233,26 @@ export class WanixHandle {
     }
 
     async readlink(name) {
+        name = cleanpath(name);
         this.logger(`readlink ${name}`);
         return (await this.peer.call("Readlink", [name])).value;
     }
 
     async symlink(oldname, newname) {
+        oldname = cleanpath(oldname);
+        newname = cleanpath(newname);
         this.logger(`symlink ${oldname} ${newname}`);
         await this.peer.call("Symlink", [oldname, newname]);
     }
 
     async chtimes(name, atime, mtime) {
+        name = cleanpath(name);
         this.logger(`chtimes ${name} ${atime} ${mtime}`);
         await this.peer.call("Chtimes", [name, atime, mtime]);
     }
 
     async spawn(name, args, opts) {
+        name = cleanpath(name);
         this.logger(`spawn ${name}`);
         return (await this.peer.call("Spawn", [name, args, opts])).value;
     }
