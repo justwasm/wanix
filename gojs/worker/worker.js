@@ -329,7 +329,7 @@ function cleanpath(path) {
                         callback(null, 0);
                         return;
                     }
-                    buffer.set(buf);
+                    buffer.set(buf, offset);
                     callback(null, buf.length);
                 } catch (e) {
                     errback(callback, e);
