@@ -80,7 +80,7 @@ function errback(cb, e) {
     cb(err);
 }
 
-// todo: support .. and ~
+// Clean VFS path: strip ./, prepend cwd for relative, resolve .. and .
 function cleanpath(path) {
     // console.log("cleanpath", path);
     if (path.startsWith("./")) {
@@ -100,6 +100,12 @@ function cleanpath(path) {
 
     for (const p of parts) {
         if (p === "" || p === ".") {
+            continue;
+        }
+        if (p === "..") {
+            if (stack.length > 0) {
+                stack.pop();
+            }
             continue;
         }
         stack.push(p);

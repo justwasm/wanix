@@ -37,7 +37,9 @@ func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
 	// Clean leading ./ or / from the command path for VFS compatibility
 	cmdParts := strings.Fields(cmd)
 	if len(cmdParts) > 0 {
-		cleanPath := strings.TrimLeft(cmdParts[0], "./")
+		cleanPath := cmdParts[0]
+		cleanPath = strings.TrimPrefix(cleanPath, "./")
+		cleanPath = strings.TrimPrefix(cleanPath, "/")
 		cmdParts[0] = cleanPath
 		cmd = strings.Join(cmdParts, " ")
 	}
