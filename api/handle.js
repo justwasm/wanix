@@ -16,8 +16,14 @@ function cleanpath(path) {
 }
 
 export class WanixHandle {
-    constructor(port) {
-        const sess = new duplex.Session(new duplex.PortConn(port));
+    constructor(portOrConn) {
+        let conn;
+        if (portOrConn && typeof portOrConn === 'object' && portOrConn.read && portOrConn.write && portOrConn.close) {
+            conn = portOrConn;
+        } else {
+            conn = new duplex.PortConn(portOrConn);
+        }
+        const sess = new duplex.Session(conn);
         this.peer = new duplex.Peer(sess, new duplex.CBORCodec());
         this.logger = () => null;
     }

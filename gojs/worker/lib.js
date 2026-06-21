@@ -11,7 +11,11 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
 var __commonJS = (cb, mod) => function __require2() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -3951,8 +3955,14 @@ var Conn = class {
 
 // api/handle.js
 var WanixHandle = class {
-  constructor(port) {
-    const sess = new Session(new Conn(port));
+  constructor(portOrConn) {
+    let conn;
+    if (portOrConn && typeof portOrConn === "object" && portOrConn.read && portOrConn.write && portOrConn.close) {
+      conn = portOrConn;
+    } else {
+      conn = new Conn(portOrConn);
+    }
+    const sess = new Session(conn);
     this.peer = new Peer(sess, new CBORCodec());
     this.logger = () => null;
   }
@@ -4185,6 +4195,55 @@ if (!ReadableStream.prototype[Symbol.asyncIterator]) {
     }
   };
 }
+
+// gojs/worker/sabconn.js
+var SAB_SIZE = 131072;
+var H2W_OFFSET = 65536;
+var SharedBufferConn = class {
+  constructor(sab) {
+    this.sab = sab;
+    this.isClosed = false;
+    this.w2h_ctrl = new Int32Array(sab, 0, 1);
+    this.w2h_len = new Int32Array(sab, 4, 1);
+    this.w2h_data = new Uint8Array(sab, 8, SAB_SIZE - 8);
+    this.h2w_ctrl = new Int32Array(sab, H2W_OFFSET, 1);
+    this.h2w_len = new Int32Array(sab, H2W_OFFSET + 4, 1);
+    this.h2w_data = new Uint8Array(sab, H2W_OFFSET + 8, SAB_SIZE - H2W_OFFSET - 8);
+    this.maxData = this.h2w_data.length - 16;
+  }
+  async write(p) {
+    if (this.isClosed) return 0;
+    const len = Math.min(p.length, this.maxData);
+    Atomics.wait(this.w2h_ctrl, 0, 1);
+    this.w2h_data.set(p.subarray(0, len));
+    Atomics.store(this.w2h_len, 0, len);
+    Atomics.store(this.w2h_ctrl, 0, 1);
+    Atomics.notify(this.w2h_ctrl, 0);
+    return len;
+  }
+  async read(p) {
+    if (this.isClosed) return null;
+    Atomics.wait(this.h2w_ctrl, 0, 0);
+    if (Atomics.load(this.h2w_ctrl) === 2) {
+      this.isClosed = true;
+      return null;
+    }
+    const n = Math.min(Atomics.load(this.h2w_len), p.length);
+    p.set(this.h2w_data.subarray(0, n));
+    Atomics.store(this.h2w_ctrl, 0, 0);
+    Atomics.notify(this.h2w_ctrl, 0);
+    return n;
+  }
+  close() {
+    if (this.isClosed) return;
+    this.isClosed = true;
+    Atomics.store(this.w2h_ctrl, 0, 2);
+    Atomics.store(this.h2w_ctrl, 0, 2);
+    Atomics.notify(this.w2h_ctrl, 0);
+    Atomics.notify(this.h2w_ctrl, 0);
+  }
+};
 export {
+  SharedBufferConn,
   WanixHandle
 };

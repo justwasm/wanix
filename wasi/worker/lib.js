@@ -11,7 +11,11 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
 var __commonJS = (cb, mod) => function __require2() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
 };
 var __export = (target3, all) => {
   for (var name in all)
@@ -8373,8 +8377,14 @@ var Conn = class {
 
 // api/handle.js
 var WanixHandle2 = class {
-  constructor(port) {
-    const sess = new Session(new Conn(port));
+  constructor(portOrConn) {
+    let conn;
+    if (portOrConn && typeof portOrConn === "object" && portOrConn.read && portOrConn.write && portOrConn.close) {
+      conn = portOrConn;
+    } else {
+      conn = new Conn(portOrConn);
+    }
+    const sess = new Session(conn);
     this.peer = new Peer(sess, new CBORCodec());
     this.logger = () => null;
   }

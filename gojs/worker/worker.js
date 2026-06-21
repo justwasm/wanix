@@ -1,5 +1,6 @@
 import { 
-    WanixHandle
+    WanixHandle,
+    SharedBufferConn
 } from "./lib.js";
 
 const TASKNS = "#task";
@@ -8,7 +9,8 @@ self.addEventListener("message", async (e) => {
     if (!e.data.worker) return;
 
     console.log("gojs worker started");
-    const fs = new WanixHandle(e.data.worker.port);
+    const conn = new SharedBufferConn(e.data.worker.sab);
+    const fs = new WanixHandle(conn);
     globalThis.worker = e.data.worker;
     globalThis.sys = fs; // deprecated
     const tid = e.data.worker.tid;
