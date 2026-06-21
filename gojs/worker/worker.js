@@ -147,16 +147,16 @@ function cleanpath(path) {
 			// },
 			async write(fd, buf, offset, length, position, callback) {
                 log("write", fd, buf.length, offset, length, position);
-				if (offset !== 0 || length !== buf.length) {
-					callback(enosys());
-					return;
-				}
+                // offset/length are buffer offsets (not file offsets) — slice buf
+                const data = (offset !== 0 || length !== buf.length)
+                    ? buf.subarray(offset, offset + length)
+                    : buf;
                 try {
                     if (position !== null) {
-                        callback(null, await sys.writeAt(fd, buf, position));
+                        callback(null, await sys.writeAt(fd, data, position));
                         return;
                     }
-                    callback(null, await sys.write(fd, buf));
+                    callback(null, await sys.write(fd, data));
                 } catch (e) {
                     errback(callback, e);
                 }
