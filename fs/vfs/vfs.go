@@ -207,6 +207,8 @@ func (ns *NS) UnbindAll() error {
 }
 
 func (ns *NS) Unbind(src fs.FS, srcPath, dstPath string) error {
+	srcPath = cleanPath(srcPath)
+	dstPath = cleanPath(dstPath)
 	if !fs.ValidPath(srcPath) {
 		return &fs.PathError{Op: "unbind", Path: srcPath, Err: fs.ErrNotExist}
 	}
@@ -233,6 +235,17 @@ func (ns *NS) Unbind(src fs.FS, srcPath, dstPath string) error {
 	return nil
 }
 
+// cleanPath normalizes a VFS path: resolves .., collapses slashes, strips leading /.
+// This ensures all VFS entry points accept both absolute and relative paths consistently.
+func cleanPath(name string) string {
+	name = path.Clean(name)
+	name = strings.TrimPrefix(name, "/")
+	if name == "" {
+		name = "."
+	}
+	return name
+}
+
 // Bind adds a file or directory to the namespace.
 // If specified, mode controls the order of the bindings.
 // Only the first mode is used. If not specified, ModeAfter is used.
@@ -240,6 +253,8 @@ func (ns *NS) Bind(src fs.FS, srcPath, dstPath string, mode ...BindMode) error {
 	if src == nil {
 		return &fs.PathError{Op: "bind", Path: srcPath, Err: fs.ErrInvalid}
 	}
+	srcPath = cleanPath(srcPath)
+	dstPath = cleanPath(dstPath)
 	if !fs.ValidPath(srcPath) {
 		return &fs.PathError{Op: "bind", Path: srcPath, Err: fs.ErrNotExist}
 	}
@@ -301,6 +316,7 @@ func (ns *NS) Bind(src fs.FS, srcPath, dstPath string, mode ...BindMode) error {
 
 // Binds returns all fileinfo for bindings in a directory
 func (ns *NS) Binds(name string) ([]fs.FileInfo, error) {
+	name = cleanPath(name)
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "binds", Path: name, Err: fs.ErrNotExist}
 	}
@@ -336,6 +352,7 @@ func (ns *NS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (ns *NS) StatContext(ctx context.Context, name string) (fs.FileInfo, error) {
+	name = cleanPath(name)
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrNotExist}
 	}
@@ -392,6 +409,7 @@ func (ns *NS) Open(name string) (fs.File, error) {
 
 // OpenContext ...
 func (ns *NS) OpenContext(ctx context.Context, name string) (fs.File, error) {
+	name = cleanPath(name)
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}

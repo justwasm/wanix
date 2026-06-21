@@ -31,6 +31,7 @@ async function initializeSyncWorker(e) {
     const tid = e.data.worker.tid;
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n").filter(line => line.includes("="));
     const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
+    args[0] = cleanpath(args[0]);
     const bin = await fs.readFile(args[0]);
     const buffer = new SharedArrayBuffer(16384);
     const call = new CallBuffer(buffer);
@@ -47,6 +48,29 @@ async function initializeSyncWorker(e) {
     });
 }
 
+function cleanpath(path) {
+    if (path.startsWith("./")) {
+        path = path.slice(2);
+    }
+    if (path === "/") {
+        return ".";
+    }
+    path = path.replace(/\/+/g, '/');
+    const parts = path.split('/');
+    const stack = [];
+    for (const p of parts) {
+        if (p === "" || p === ".") continue;
+        if (p === "..") {
+            if (stack.length > 0) stack.pop();
+            continue;
+        }
+        stack.push(p);
+    }
+    path = stack.join('/');
+    if (path === "") return ".";
+    return path;
+}
+
 function messageHandler(fs, call, tid) {
     return async (e) => {
         if (!e.data.method) {
@@ -56,37 +80,37 @@ function messageHandler(fs, call, tid) {
         // const start = performance.now();
         switch (e.data.method) {
         case "path_open":
-            const fd = await fs.open(e.data.path);
+            const fd = await fs.open(cleanpath(e.data.path));
             call.respond(fd);
             break;
 
         case "path_truncate":
-            await fs.truncate(e.data.path, e.data.to);
+            await fs.truncate(cleanpath(e.data.path), e.data.to);
             call.respond(true);
             break;
 
         case "path_size":
-            const stat = await fs.stat(e.data.path);
+            const stat = await fs.stat(cleanpath(e.data.path));
             call.respond(stat.Size);
             break;
 
         case "path_readdir":
-            const entries = await fs.readDir(e.data.path);
+            const entries = await fs.readDir(cleanpath(e.data.path));
             call.respond(entries);
             break;
 
         case "path_remove":
-            await fs.remove(e.data.path);
+            await fs.remove(cleanpath(e.data.path));
             call.respond(true);
             break;
 
         case "path_mkdir":
-            await fs.makeDir(e.data.path);
+            await fs.makeDir(cleanpath(e.data.path));
             call.respond(true);
             break;
 
         case "path_touch":
-            await fs.writeFile(e.data.path, "");
+            await fs.writeFile(cleanpath(e.data.path), "");
             call.respond(true);
             break;
 
