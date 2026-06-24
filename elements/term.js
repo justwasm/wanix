@@ -6,6 +6,7 @@ import { WanixElement } from "./base.js";
 
 export class TerminalElement extends WanixElement {
     #resizeObserver;
+    #intersectionObserver;
     #reader;
     #writer;
     #dataDisposable;
@@ -17,7 +18,9 @@ export class TerminalElement extends WanixElement {
         this._term = null;
         this._fitAddon = null;
         this.#resizeObserver = null;
+        this.#intersectionObserver = null;
         this.#reader = null;
+        this._visible = true;
         this.#writer = null;
         this.#dataDisposable = null;
     }
@@ -47,6 +50,7 @@ export class TerminalElement extends WanixElement {
         this._term.open(this);
 
         this.#resizeObserver = new ResizeObserver(() => {
+            if (!this._visible) return;
             this._fitAddon.fit();
             this.dataset.cols = this._term.cols;
             this.dataset.rows = this._term.rows;
@@ -66,6 +70,18 @@ export class TerminalElement extends WanixElement {
         this.dataset.rows = this._term.rows;
         this.dataset.xpixel = this.offsetWidth;
         this.dataset.ypixel = this.offsetHeight;
+
+        this.#intersectionObserver = new IntersectionObserver(([entry]) => {
+            this._visible = entry.isIntersecting;
+            if (this._visible) {
+                this._fitAddon.fit();
+                this.dataset.cols = this._term.cols;
+                this.dataset.rows = this._term.rows;
+                this.dataset.xpixel = this.offsetWidth;
+                this.dataset.ypixel = this.offsetHeight;
+            }
+        });
+        this.#intersectionObserver.observe(this);
     }
     
 
@@ -76,6 +92,10 @@ export class TerminalElement extends WanixElement {
         if (this.#resizeObserver) {
             this.#resizeObserver.disconnect();
             this.#resizeObserver = null;
+        }
+        if (this.#intersectionObserver) {
+            this.#intersectionObserver.disconnect();
+            this.#intersectionObserver = null;
         }
         if (this._term) {
             this._term.dispose();
