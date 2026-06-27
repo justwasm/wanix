@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tractor.dev/wanix/fs"
+	"tractor.dev/wanix/fs/fskit"
 	"tractor.dev/wanix/misc/jsutil"
 )
 
@@ -101,12 +102,19 @@ func (h *FileHandle) Size() int64 {
 }
 
 func (h *FileHandle) Stat() (fs.FileInfo, error) {
-	// Check cache first (similar to httpfs pattern)
-	if info, err, found := h.fsys.getCachedStat(h.path); found {
-		if err != nil {
-			return nil, err
+	// Check cache first when there are no uncommitted writes
+	// (active writer means getFile() won't reflect pending data).
+	h.mu.Lock()
+	hasWriter := !h.writer.IsUndefined()
+	h.mu.Unlock()
+
+	if !hasWriter {
+		if info, err, found := h.fsys.getCachedStat(h.path); found {
+			if err != nil {
+				return nil, err
+			}
+			return info, nil
 		}
-		return info, nil
 	}
 
 	// Build fresh stat from JS API + metadata store
@@ -116,6 +124,20 @@ func (h *FileHandle) Stat() (fs.FileInfo, error) {
 		h.fsys.setCachedStatError(h.path, err)
 		return nil, err
 	}
+
+	// If there's an active writer, the WritableFileStream may have uncommitted
+	// data not yet visible to getFile(). Use h.offset as the logical EOF
+	// (sequential writes advance offset past the committed size).
+	h.mu.Lock()
+	if hasWriter && h.offset > info.Size() {
+		info = fskit.Entry(
+			info.Name(),
+			info.Mode(),
+			h.offset,
+			info.ModTime(),
+		)
+	}
+	h.mu.Unlock()
 
 	// Cache the result
 	h.fsys.setCachedStat(h.path, info)
