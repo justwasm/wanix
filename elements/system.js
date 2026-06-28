@@ -18,6 +18,10 @@ export class SystemElement extends WanixElement {
         this.instanceID = instanceID;
         this.isReady = false;
         this.debug = false;
+        if (typeof URLSearchParams !== "undefined" && location.search) {
+            const params = new URLSearchParams(location.search);
+            if (params.has("debug")) this.setAttribute("debug", "");
+        }
         
         this._ready = new Promise(resolve => this._wasmReady = resolve);
         this._ready.then(async () => {

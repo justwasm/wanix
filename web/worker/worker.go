@@ -138,14 +138,17 @@ func (r *Resource) Start(args ...string) error {
 		return nil
 	}))
 
+	debug := sys.Element().Call("hasAttribute", "debug").Bool()
+
 	msg := map[string]any{"worker": map[string]any{
-		"id":   r.id,
-		"tid":  r.task.ID(),
-		"port": port,
-		"p9":   p9,
-		"cmd":  strings.Join(args, " "),
-		"env":  env,
-		"url":  url,
+		"id":    r.id,
+		"tid":   r.task.ID(),
+		"port":  port,
+		"p9":    p9,
+		"cmd":   strings.Join(args, " "),
+		"env":   env,
+		"url":   url,
+		"debug": debug,
 	}}
 	if r.wasmModule.Truthy() {
 		msg["worker"].(map[string]any)["wasmModule"] = r.wasmModule
