@@ -3,27 +3,35 @@
 package cache
 
 import (
+	"hash/fnv"
 	"sync"
 	"syscall/js"
 )
 
+type entry struct {
+	module js.Value
+	hash   uint64
+}
+
 var (
-	jsWasm    = js.Global().Get("WebAssembly")
-	memCache  = make(map[string]js.Value, maxModules)
-	order     []string
-	mu        sync.Mutex
+	jsWasm   = js.Global().Get("WebAssembly")
+	memCache = make(map[string]entry, maxModules)
+	order    []string
+	mu       sync.Mutex
 )
 
 const maxModules = 32
 
 // GetOrCompile returns a compiled WebAssembly.Module for the given path.
-// On cache hit, returns the cached module immediately.
-// On cache miss, compiles the binary, caches the module, and returns it.
+// It verifies content integrity via a hash of the binary — if the file at the
+// same path has changed, it recompiles and updates the cache.
 func GetOrCompile(path string, binary []byte) (js.Value, error) {
+	h := hash64(binary)
+
 	mu.Lock()
-	if module, ok := memCache[path]; ok {
+	if e, ok := memCache[path]; ok && e.hash == h {
 		mu.Unlock()
-		return module, nil
+		return e.module, nil
 	}
 	mu.Unlock()
 
@@ -56,7 +64,7 @@ func GetOrCompile(path string, binary []byte) (js.Value, error) {
 		delete(memCache, oldest)
 		order = order[1:]
 	}
-	memCache[path] = module
+	memCache[path] = entry{module: module, hash: h}
 	order = append(order, path)
 	mu.Unlock()
 
@@ -79,7 +87,15 @@ func Drop(path string) {
 // Clear empties the entire cache.
 func Clear() {
 	mu.Lock()
-	memCache = make(map[string]js.Value, maxModules)
+	memCache = make(map[string]entry, maxModules)
 	order = nil
 	mu.Unlock()
+}
+
+// hash64 computes a 64-bit FNV-1a hash of the binary content.
+// Fast non-crypto hash — collision risk is negligible for cache invalidation.
+func hash64(data []byte) uint64 {
+	h := fnv.New64a()
+	h.Write(data)
+	return h.Sum64()
 }
