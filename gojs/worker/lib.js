@@ -4114,6 +4114,9 @@ var WanixHandle = class {
   }
   async spawn(name, args, opts) {
     this.logger(`spawn ${name}`);
+    if (opts && !opts.cwd) {
+      opts.cwd = globalThis.cwd;
+    }
     return (await this.peer.call("Spawn", [name, args, opts])).value;
   }
   async wait(pid) {

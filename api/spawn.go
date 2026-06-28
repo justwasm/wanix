@@ -81,12 +81,14 @@ func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
 		return
 	}
 
-	// Set cwd
+	// Set cwd — fall back to parent's CWD when child doesn't specify one
+	d := s.task.Dir()
 	if opts != nil {
-		if d, ok := opts["cwd"].(string); ok && d != "" {
-			writeTaskFile(filepath.Join(taskPath, "dir"), d)
+		if cwd, ok := opts["cwd"].(string); ok && cwd != "" {
+			d = cwd
 		}
 	}
+	writeTaskFile(filepath.Join(taskPath, "dir"), d)
 
 	// Set env
 	if opts != nil {

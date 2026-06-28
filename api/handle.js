@@ -248,6 +248,10 @@ export class WanixHandle {
     async spawn(name, args, opts) {
         name = cleanpath(name);
         this.logger(`spawn ${name}`);
+        // Pass current CWD so child inherits it (chdir only updates globalThis.cwd, not the task's dir file)
+        if (opts && !opts.cwd) {
+            opts.cwd = globalThis.cwd;
+        }
         return (await this.peer.call("Spawn", [name, args, opts])).value;
     }
 
