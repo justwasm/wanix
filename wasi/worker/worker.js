@@ -16,6 +16,32 @@ import {
 
 const TASKNS = "#task";
 
+// splitCmd splits a command string into arguments, respecting shell-style
+// single and double quotes so arguments containing spaces (produced by
+// shlex.Join in the kernel's spawn handler) are recovered correctly.
+function splitCmd(cmd) {
+    cmd = cmd.trim();
+    const args = [];
+    let cur = '';
+    let quote = null;
+    for (let i = 0; i < cmd.length; i++) {
+        const c = cmd[i];
+        if (quote) {
+            if (c === '\\' && quote === '"') { cur += cmd[++i]; continue; }
+            if (c === quote) { quote = null; continue; }
+            cur += c;
+            continue;
+        }
+        if (c === "'" || c === '"') { quote = c; continue; }
+        if (c === '\\') { cur += cmd[++i]; continue; }
+        if (c === ' ' || c === '\t') { if (cur) { args.push(cur); cur = ''; } continue; }
+        cur += c;
+    }
+    if (quote) return []; // unclosed quote
+    if (cur) args.push(cur);
+    return args;
+}
+
 self.onmessage = async (e) => {
     if (e.data.worker) {
         console.log("wasi worker started");
@@ -30,7 +56,7 @@ async function initializeSyncWorker(e) {
     const fs = new WanixHandle(e.data.worker.port);
     const tid = e.data.worker.tid;
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n").filter(line => line.includes("="));
-    const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
+    const args = splitCmd(await fs.readText(`${TASKNS}/${tid}/cmd`));
     args[0] = cleanpath(args[0]);
     const bin = await fs.readFile(args[0]);
     const buffer = new SharedArrayBuffer(16384);

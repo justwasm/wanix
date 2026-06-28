@@ -16,7 +16,7 @@ self.addEventListener("message", async (e) => {
     globalThis.process.ppid = parseInt(e.data.worker.ppid || "0");
 
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
-    const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
+    const args = splitCmd(await fs.readText(`${TASKNS}/${tid}/cmd`));
     // Strip leading ./ or / from the WASM path for VFS compatibility
     args[0] = cleanpath(args[0]);
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
@@ -48,6 +48,32 @@ self.addEventListener("message", async (e) => {
         console.warn("gojs exit write failed:", e);
     }
 });
+
+// splitCmd splits a command string into arguments, respecting shell-style
+// single and double quotes so arguments containing spaces (produced by
+// shlex.Join in the kernel's spawn handler) are recovered correctly.
+function splitCmd(cmd) {
+    cmd = cmd.trim();
+    const args = [];
+    let cur = '';
+    let quote = null;
+    for (let i = 0; i < cmd.length; i++) {
+        const c = cmd[i];
+        if (quote) {
+            if (c === '\\' && quote === '"') { cur += cmd[++i]; continue; }
+            if (c === quote) { quote = null; continue; }
+            cur += c;
+            continue;
+        }
+        if (c === "'" || c === '"') { quote = c; continue; }
+        if (c === '\\') { cur += cmd[++i]; continue; }
+        if (c === ' ' || c === '\t') { if (cur) { args.push(cur); cur = ''; } continue; }
+        cur += c;
+    }
+    if (quote) return []; // unclosed quote
+    if (cur) args.push(cur);
+    return args;
+}
 
 function log(...args) {
     console.log(...args);
