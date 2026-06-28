@@ -25,5 +25,8 @@ func StartTaskWorker(svc *Device, t *wanix.Task, blobURL string, wasmModule js.V
 	w.wasmModule = wasmModule
 	args, _ := shlex.Split(t.Cmd(), true)
 	args = append([]string{blobURL}, args...)
+	wanix.SetCloser(t, func() {
+		svc.Release(w.ID())
+	})
 	return w.Start(args...)
 }

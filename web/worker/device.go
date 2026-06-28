@@ -76,3 +76,14 @@ func (d *Device) Alloc(t *wanix.Task) (*Resource, error) {
 	d.resources[rid] = r
 	return r, nil
 }
+
+func (d *Device) Release(rid string) {
+	r, ok := d.resources[rid]
+	if !ok {
+		return
+	}
+	if res, ok := r.(*Resource); ok {
+		res.Cleanup()
+	}
+	delete(d.resources, rid)
+}

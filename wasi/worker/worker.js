@@ -49,6 +49,7 @@ self.onmessage = async (e) => {
     } else if (e.data.buffer) {
         console.log("wasi sync worker started");
 		await runWasi(e);
+		self.close();
 	}
 }
 
@@ -166,6 +167,7 @@ function messageHandler(fs, call, tid) {
         case "exit":
             await fs.writeFile(`${TASKNS}/${tid}/exit`, e.data.code.toString());
             call.respond(true);
+            self.close();
             break;
         
         default:

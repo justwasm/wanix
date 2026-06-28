@@ -47,6 +47,7 @@ self.addEventListener("message", async (e) => {
     } catch (e) {
         console.warn("gojs exit write failed:", e);
     }
+    self.close();
 });
 
 // splitCmd splits a command string into arguments, respecting shell-style

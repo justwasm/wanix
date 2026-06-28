@@ -71,6 +71,12 @@ func SetWorker(t *Task, worker any) {
 	t.worker = worker
 }
 
+func SetCloser(t *Task, fn func()) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closer = fn
+}
+
 func GetWorker(t *Task) any {
 	t.mu.Lock()
 	defer t.mu.Unlock()
