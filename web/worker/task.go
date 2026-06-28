@@ -3,10 +3,10 @@
 package worker
 
 import (
-	"strings"
 	"syscall/js"
 
 	"tractor.dev/wanix"
+	"tractor.dev/wanix/misc/shlex"
 )
 
 func FromTask(t *wanix.Task) js.Value {
@@ -23,6 +23,7 @@ func StartTaskWorker(svc *Device, t *wanix.Task, blobURL string, wasmModule js.V
 		return err
 	}
 	w.wasmModule = wasmModule
-	args := append([]string{blobURL}, strings.Split(t.Cmd(), " ")...)
+	args, _ := shlex.Split(t.Cmd(), true)
+	args = append([]string{blobURL}, args...)
 	return w.Start(args...)
 }
