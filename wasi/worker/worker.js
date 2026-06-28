@@ -40,6 +40,7 @@ async function initializeSyncWorker(e) {
     worker.postMessage({
         buffer, 
         bin,
+		wasmModule: e.data.worker.wasmModule,
         args,
         env,
 		stdin: `${TASKNS}/${tid}/fd/0`,
