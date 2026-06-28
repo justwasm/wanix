@@ -103,6 +103,12 @@ export class TaskElement extends WanixElement {
         await this._system._setupNamespace(this.rid, this.fsys, bindElements);
     }
 
+    disconnectedCallback() {
+        if (this.rid && this._system) {
+            this._system.root.writeFile([this.path, "ctl"].join("/"), "terminate").catch(() => {});
+        }
+    }
+
     async start() {
         await this._system.root.writeFile([this._taskpath, this.rid, "ctl"].join("/"), "start");
         // console.log('task start', this, this.rid, this.id);
