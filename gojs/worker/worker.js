@@ -90,7 +90,7 @@ function cleanpath(path) {
     if (path.startsWith("./")) {
         path = path.slice(2);
     }
-    if (path === "/") {
+    if (path === "/" || path === "") {
         return ".";
     }
     if (!path.startsWith("/")) {
