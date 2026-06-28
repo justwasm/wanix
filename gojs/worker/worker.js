@@ -33,7 +33,11 @@ self.addEventListener("message", async (e) => {
     go.exit = (code) => {
         exitCode = code;
     };
-    const result = await WebAssembly.instantiate(bin, go.importObject);
+    let wasmModule = e.data.worker.wasmModule;
+    if (!wasmModule) {
+        wasmModule = await WebAssembly.compile(bin);
+    }
+    const result = await WebAssembly.instantiate(wasmModule, go.importObject);
     const start = performance.now();
     await go.run(result.instance);
     const end = performance.now();
