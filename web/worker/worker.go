@@ -40,6 +40,13 @@ func (r *Resource) ID() string {
 	return strconv.Itoa(r.id)
 }
 
+func (r *Resource) Cleanup() {
+	if !r.worker.IsUndefined() {
+		r.worker.Call("terminate")
+	}
+	r.state = "terminated"
+}
+
 func (r *Resource) Start(args ...string) error {
 	env := make(map[string]any)
 
@@ -171,10 +178,7 @@ func (r *Resource) ResolveFS(ctx context.Context, name string) (fs.FS, string, e
 				case "start":
 					r.Start(args[1:]...)
 				case "terminate":
-					if !r.worker.IsUndefined() {
-						r.worker.Call("terminate")
-					}
-					r.state = "terminated"
+					r.Cleanup()
 				}
 			},
 		}),
