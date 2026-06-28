@@ -37,9 +37,9 @@ self.addEventListener("message", async (e) => {
     if (!wasmModule) {
         wasmModule = await WebAssembly.compile(bin);
     }
-    const result = await WebAssembly.instantiate(wasmModule, go.importObject);
+    const instance = await WebAssembly.instantiate(wasmModule, go.importObject);
     const start = performance.now();
-    await go.run(result.instance);
+    await go.run(instance);
     const end = performance.now();
     console.log(`gojs execution took ${end - start}ms`);
     try {
