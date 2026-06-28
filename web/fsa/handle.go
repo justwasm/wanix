@@ -28,6 +28,7 @@ type FileHandle struct {
 	closed bool
 	mu     sync.Mutex
 	fsys   *FS // Reference to the FS instance for stat cache access
+	buf    []byte // buffer for uncommitted writes
 	js.Value
 }
 
@@ -68,6 +69,10 @@ func (h *FileHandle) Close() error {
 
 		// Invalidate stat cache since closing a writer commits changes
 		h.fsys.invalidateCachedStat(h.path)
+
+		// Clear buffer; force fresh getFile() on next read
+		h.buf = nil
+		h.file = js.Undefined()
 	}
 
 	return nil
@@ -97,6 +102,9 @@ func (h *FileHandle) Truncate(size int64) error {
 }
 
 func (h *FileHandle) Size() int64 {
+	if len(h.buf) > 0 {
+		return int64(len(h.buf))
+	}
 	h.tryGetFile()
 	return int64(h.file.Get("size").Int())
 }
@@ -173,6 +181,10 @@ func (h *FileHandle) Write(b []byte) (int, error) {
 	}
 	h.offset += int64(n)
 
+	// Buffer the data for subsequent reads (getFile() won't reflect
+	// uncommitted writes until the WritableFileStream is closed).
+	h.buf = append(h.buf, b...)
+
 	Metadata().SetTimes(h.path, time.Now(), time.Now())
 
 	// Invalidate stat cache since file size/mtime changed
@@ -191,6 +203,17 @@ func (h *FileHandle) Read(b []byte) (int, error) {
 
 	if h.closed {
 		return 0, fs.ErrClosed
+	}
+
+	// When there are uncommitted writes in the buffer, serve reads from
+	// the buffer (getFile() snapshot doesn't reflect writes until close).
+	if len(h.buf) > 0 {
+		if h.offset >= int64(len(h.buf)) {
+			return 0, io.EOF
+		}
+		n := copy(b, h.buf[h.offset:])
+		h.offset += int64(n)
+		return n, nil
 	}
 
 	size := h.Size()
