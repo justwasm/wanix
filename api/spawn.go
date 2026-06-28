@@ -13,6 +13,7 @@ import (
 	"tractor.dev/wanix"
 	"tractor.dev/wanix/fs"
 	"tractor.dev/wanix/fs/fskit"
+	"tractor.dev/wanix/misc/shlex"
 )
 
 func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
@@ -23,26 +24,21 @@ func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
 	argv, _ := args[1].([]any)
 	opts := toStringMap(args[2])
 
-	// Build command string from name + argv, clean path
-	cmd := name
-	if argv != nil {
-		parts := make([]string, 0, len(argv)+1)
-		parts = append(parts, name)
-		for _, a := range argv {
-			parts = append(parts, toString(a))
-		}
-		cmd = strings.Join(parts, " ")
+	// Build parts list from name + argv, preserving argument boundaries
+	parts := make([]string, 0, 1+len(argv))
+	parts = append(parts, name)
+	for _, a := range argv {
+		parts = append(parts, toString(a))
 	}
 
 	// Clean leading ./ or / from the command path for VFS compatibility
-	cmdParts := strings.Fields(cmd)
-	if len(cmdParts) > 0 {
-		cleanPath := cmdParts[0]
-		cleanPath = strings.TrimPrefix(cleanPath, "./")
-		cleanPath = strings.TrimPrefix(cleanPath, "/")
-		cmdParts[0] = cleanPath
-		cmd = strings.Join(cmdParts, " ")
-	}
+	parts[0] = strings.TrimPrefix(parts[0], "./")
+	parts[0] = strings.TrimPrefix(parts[0], "/")
+
+	// Use shlex.Join to produce a shell-safe flat string, quoting
+	// arguments that contain whitespace or special characters so the
+	// downstream parsers (which use shlex.Split) recover them correctly.
+	cmd := shlex.Join(parts)
 
 	parent := s.task
 	if parent == nil {

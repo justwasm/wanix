@@ -14,6 +14,7 @@ import (
 	"tractor.dev/wanix/fs/fskit"
 	"tractor.dev/wanix/fs/vfs"
 	"tractor.dev/wanix/misc"
+	"tractor.dev/wanix/misc/shlex"
 )
 
 // contextKey is a value for use with context.WithValue. It's used as
@@ -163,8 +164,8 @@ func (r *Task) Cmd() string {
 }
 
 func (r *Task) Arg(idx int) string {
-	args := strings.Split(r.cmd, " ")
-	if idx < 0 || idx >= len(args) {
+	args, err := shlex.Split(r.cmd, true)
+	if err != nil || idx < 0 || idx >= len(args) {
 		return ""
 	}
 	return args[idx]

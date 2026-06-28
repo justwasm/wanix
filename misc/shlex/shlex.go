@@ -80,6 +80,27 @@ func Split(s string, posix bool) ([]string, error) {
 	return NewLexerString(s, posix, true).Split()
 }
 
+var joinEscaper = strings.NewReplacer("'", `'"'"'"`)
+
+// Join joins arguments into a shell-safe command string, quoting arguments
+// that contain whitespace or special characters.
+func Join(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		if arg == "" {
+			quoted[i] = "''"
+		} else if strings.ContainsAny(arg, " \t\n'\"\\") {
+			quoted[i] = "'" + joinEscaper.Replace(arg) + "'"
+		} else {
+			quoted[i] = arg
+		}
+	}
+	return strings.Join(quoted, " ")
+}
+
 // SetTokenizer sets a Tokenizer.
 func (l *Lexer) SetTokenizer(t Tokenizer) {
 	l.tokenizer = t

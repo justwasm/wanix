@@ -11,6 +11,7 @@ import (
 	"github.com/creack/pty"
 	"tractor.dev/wanix"
 	"tractor.dev/wanix/fs"
+	"tractor.dev/wanix/misc/shlex"
 )
 
 // ExecDriver runs the task command as a host OS process (os/exec).
@@ -112,17 +113,16 @@ func (d *ExecDriver) waitAndRecordExit(t *wanix.Task, cmd *exec.Cmd) {
 	_ = f.Close()
 }
 
-// splitCmd mirrors wanix.Task.Arg (space-separated) but drops empty tokens so
-// multiple spaces do not become bogus argv entries.
+// splitCmd splits a command string into arguments using shell-style
+// quoting rules so arguments containing spaces (quoted by spawn.go's
+// shlex.Join) are recovered correctly.
 func splitCmd(cmd string) []string {
 	if strings.TrimSpace(cmd) == "" {
 		return nil
 	}
-	var out []string
-	for _, p := range strings.Split(cmd, " ") {
-		if p != "" {
-			out = append(out, p)
-		}
+	args, err := shlex.Split(cmd, true)
+	if err != nil {
+		return nil
 	}
-	return out
+	return args
 }
