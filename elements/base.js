@@ -34,6 +34,8 @@ export class WanixElement extends HTMLElement {
         }
     }
 
+    disconnectedCallback() {}
+
     _awake() { throw new Error('Not implemented'); }
 
 }
