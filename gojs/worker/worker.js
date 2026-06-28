@@ -7,6 +7,7 @@ const TASKNS = "#task";
 self.addEventListener("message", async (e) => {
     if (!e.data.worker) return;
 
+    _debug = e.data.worker.debug === true;
     console.log("gojs worker started");
     const fs = new WanixHandle(e.data.worker.port);
     globalThis.worker = e.data.worker;
@@ -76,8 +77,9 @@ function splitCmd(cmd) {
     return args;
 }
 
+let _debug = false;
 function log(...args) {
-    console.log(...args);
+    if (_debug) console.log(...args);
 }
 
 
