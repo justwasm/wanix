@@ -3,7 +3,10 @@
 package wasi
 
 import (
+	"io"
+
 	"tractor.dev/wanix"
+	"tractor.dev/wanix/wasm/cache"
 	wasiworker "tractor.dev/wanix/wasi/worker"
 	"tractor.dev/wanix/web/worker"
 )
@@ -23,5 +26,21 @@ func (d *Driver) Check(t *wanix.Task) bool {
 }
 
 func (d *Driver) Start(t *wanix.Task) error {
-	return worker.StartTaskWorker(d.Workers, t, wasiworker.BlobURL())
+	f, err := t.NS().Open(t.Arg(0))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	bin, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	module, err := cache.GetOrCompile(t.Arg(0), bin)
+	if err != nil {
+		return err
+	}
+
+	return worker.StartTaskWorker(d.Workers, t, wasiworker.BlobURL(), module)
 }

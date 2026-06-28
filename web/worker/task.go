@@ -17,11 +17,12 @@ func FromTask(t *wanix.Task) js.Value {
 	return w.(js.Value)
 }
 
-func StartTaskWorker(svc *Device, t *wanix.Task, blobURL string) error {
+func StartTaskWorker(svc *Device, t *wanix.Task, blobURL string, wasmModule js.Value) error {
 	w, err := svc.Alloc(t)
 	if err != nil {
 		return err
 	}
+	w.wasmModule = wasmModule
 	args := append([]string{blobURL}, strings.Split(t.Cmd(), " ")...)
 	return w.Start(args...)
 }

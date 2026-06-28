@@ -192,8 +192,8 @@ async function runWasi(e) {
 		"wasi_snapshot_preview1": wrapped,
 	});
 
-    const wasm = await WebAssembly.compile(e.data.bin);
-	const inst = await WebAssembly.instantiate(wasm, imports);
+    const wasmModule = e.data.wasmModule || await WebAssembly.compile(e.data.bin);
+	const inst = await WebAssembly.instantiate(wasmModule, imports);
     const wasmString = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false }).decode(e.data.bin);
     let code = 0;
 	let start = performance.now();
