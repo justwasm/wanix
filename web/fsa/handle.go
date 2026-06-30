@@ -33,9 +33,6 @@ type FileHandle struct {
 }
 
 func (h *FileHandle) tryGetFile() (err error) {
-	if !h.file.IsUndefined() {
-		return nil
-	}
 	h.file, err = jsutil.AwaitErr(h.Value.Call("getFile"))
 	return
 }
@@ -63,16 +60,16 @@ func (h *FileHandle) Close() error {
 
 	if !h.writer.IsUndefined() {
 		_, err := jsutil.AwaitErr(h.writer.Call("close"))
+
+		// Always clean up, even on close error, to prevent stale state
+		// (stale cache entries cause subsequent reads to see truncated data).
+		h.fsys.invalidateCachedStat(h.path)
+		h.buf = nil
+		h.file = js.Undefined()
+
 		if err != nil {
 			return err
 		}
-
-		// Invalidate stat cache since closing a writer commits changes
-		h.fsys.invalidateCachedStat(h.path)
-
-		// Clear buffer; force fresh getFile() on next read
-		h.buf = nil
-		h.file = js.Undefined()
 	}
 
 	return nil
