@@ -531,21 +531,25 @@ func (fsys *FS) openDirectory(dirPath string, handle js.Value) fs.File {
 		if metadata, hasMetadata := Metadata().GetMetadata(entryPath); hasMetadata {
 			mode = metadata.Mode
 			mtime = metadata.Mtime
-			size = 0 // Size will be loaded lazily when needed
 		} else {
 			// Set default modes for new entries
 			if isDir {
 				mode = DefaultDirMode | fs.ModeDir
-				size = 0
 			} else {
 				mode = DefaultFileMode
-				size = 0
 			}
 			mtime = time.Now()
 		}
 
 		if isDir {
 			mode |= fs.ModeDir
+		}
+
+		// For files, get actual size from OPFS
+		if !isDir {
+			if file, err := jsutil.AwaitErr(e.Call("getFile")); err == nil {
+				size = int64(file.Get("size").Int())
+			}
 		}
 
 		entries = append(entries, fskit.Entry(entryName, mode, size, mtime))
