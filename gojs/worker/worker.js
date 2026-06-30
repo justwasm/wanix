@@ -8,7 +8,6 @@ self.addEventListener("message", async (e) => {
     if (!e.data.worker) return;
 
     _debug = e.data.worker.debug === true;
-    console.log("gojs worker started");
     const fs = new WanixHandle(e.data.worker.port);
     globalThis.worker = e.data.worker;
     globalThis.sys = fs; // deprecated
@@ -20,6 +19,7 @@ self.addEventListener("message", async (e) => {
     const args = splitCmd(await fs.readText(`${TASKNS}/${tid}/cmd`));
     // Strip leading ./ or / from the WASM path for VFS compatibility
     args[0] = cleanpath(args[0]);
+    console.log("gojs worker started", "tid:", tid, "args:", args, "env:", env);
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
     const bin = await fs.readFile(args[0]); 
 

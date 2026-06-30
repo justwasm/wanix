@@ -44,11 +44,9 @@ function splitCmd(cmd) {
 
 self.onmessage = async (e) => {
     if (e.data.worker) {
-        console.log("wasi worker started");
         await initializeSyncWorker(e);
     } else if (e.data.buffer) {
-        console.log("wasi sync worker started");
-		await runWasi(e);
+        await runWasi(e);
 		self.close();
 	}
 }
@@ -59,6 +57,7 @@ async function initializeSyncWorker(e) {
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n").filter(line => line.includes("="));
     const args = splitCmd(await fs.readText(`${TASKNS}/${tid}/cmd`));
     args[0] = cleanpath(args[0]);
+    console.log("wasi worker started", "tid:", tid, "args:", args, "env:", env);
     const bin = await fs.readFile(args[0]);
     const buffer = new SharedArrayBuffer(16384);
     const call = new CallBuffer(buffer);
@@ -179,6 +178,7 @@ function messageHandler(fs, call, tid) {
 
 
 async function runWasi(e) {
+	console.log("wasi sync worker started", "tid:", e.data.tid, "args:", e.data.args, "env:", e.data.env);
 	const caller = new CallBuffer(e.data.buffer);
 	const wasi = new WASI(e.data.args, e.data.env, [
 		new OpenEmptyFile(),
