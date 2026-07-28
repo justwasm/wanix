@@ -15,7 +15,7 @@ replace tractor.dev/toolkit-go => github.com/justwasm/toolkit-go v0.0.0-20260606
 
 require (
 	github.com/creack/pty v1.1.24
-	github.com/evanw/esbuild v0.28.0
+	github.com/evanw/esbuild v0.28.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/hanwen/go-fuse/v2 v2.7.2
 	github.com/hugelgupf/p9 v0.3.1-0.20240118043522-6f4f11e5296e
