@@ -55,20 +55,30 @@ func main() {
 		build(wanixMinOpts)
 	}()
 
-	wasiOpts := opts
-	wasiOpts.EntryPoints = []string{"wasi/mod.ts"}
-	wasiOpts.Outfile = "wasi/worker/lib.js"
-	wasiOpts.External = []string{"util"}
+	wasiOpts := api.BuildOptions{
+		Bundle:   true,
+		Write:    true,
+		Format:   api.FormatESModule,
+		External: []string{"util"},
+		LogLevel: api.LogLevelInfo,
+		EntryPoints: []string{"wasi/mod.ts"},
+		Outfile: "wasi/worker/lib.js",
+	}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		build(wasiOpts)
 	}()
 
-	gojsOpts := opts
-	gojsOpts.EntryPoints = []string{"gojs/mod.ts"}
-	gojsOpts.Outfile = "gojs/worker/lib.js"
-	gojsOpts.External = []string{"util"}
+	gojsOpts := api.BuildOptions{
+		Bundle:   true,
+		Write:    true,
+		Format:   api.FormatESModule,
+		External: []string{"util"},
+		LogLevel: api.LogLevelInfo,
+		EntryPoints: []string{"gojs/mod.ts"},
+		Outfile: "gojs/worker/lib.js",
+	}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
