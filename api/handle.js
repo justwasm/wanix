@@ -120,6 +120,11 @@ export class WanixHandle {
         return (await this.peer.call("Read", [fd, count])).value;
     }
 
+    async readAt(fd, count, position) {
+        this.logger(`readAt ${fd} ${count} ${position}`);
+        return (await this.peer.call("ReadAt", [fd, count, position])).value;
+    }
+
     async write(fd, data) {
         this.logger(`write ${fd} len(${data.length})`);
         return (await this.peer.call("Write", [fd, data])).value;
@@ -193,6 +198,29 @@ export class WanixHandle {
     async chtimes(name, atime, mtime) {
         this.logger(`chtimes ${name} ${atime} ${mtime}`);
         await this.peer.call("Chtimes", [name, atime, mtime]);
+    }
+
+    async spawn(name, args = [], opts = {}) {
+        this.logger(`spawn ${name}`);
+        if (!opts.cwd && globalThis.cwd) {
+            opts = { ...opts, cwd: globalThis.cwd };
+        }
+        return (await this.peer.call("Spawn", [name, args, opts])).value;
+    }
+
+    async wait(pid) {
+        this.logger(`wait ${pid}`);
+        return (await this.peer.call("Wait", [pid])).value;
+    }
+
+    async pipe() {
+        this.logger("pipe");
+        return (await this.peer.call("Pipe", [])).value;
+    }
+
+    async openNull() {
+        this.logger("openNull");
+        return (await this.peer.call("OpenNull", [])).value;
     }
 
     async openReadable(name) {
