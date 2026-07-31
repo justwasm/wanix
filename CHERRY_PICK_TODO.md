@@ -1,5 +1,19 @@
 # Exec Branch Cherry-pick TODO
 
+## Execution status — 2026-08-01
+
+The runtime replay is merged into `main` in `160ceb6` (`exec: replay process
+runtime onto main`). It includes portable userspace `flock`, Spawn/Wait/Pipe,
+PTY and window-size RPCs, GoJS/WASI worker integration, compiled WASM caching,
+FSA persistence fixes, terminal resize state, `/dev/null`, `rc` on standard
+`os/exec`, updated build isolation, and exec/pipe/PTY/GoJS examples.
+
+This checklist remains as the source-history audit. Deliberate deviations:
+`main`'s current `wanix-namespace`/kernel, VFS routing, dependency versions,
+and site architecture were retained; obsolete `wanix-system` and old-site
+changes from `exec` were not restored. The imported examples were adapted to
+`wanix-namespace`.
+
 Source branch: `exec` at `e13de29`
 Target branch: `main` at `76779e3`
 Fork point: `6ee3251`
