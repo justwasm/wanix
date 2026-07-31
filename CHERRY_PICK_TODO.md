@@ -173,27 +173,27 @@ update markup/API references to the `main` namespace model where necessary.
 - [x] **direct** `d39ad96` - `devserver.md: document how to start the COOP/COEP dev server`
 - [x] **direct** `f3f4a8d` - `docs: add tinygo-issues.md documenting asyncify param limit`
 - [x] **direct** `569ed6d` - `docs: add wasi-todo.md with remaining work plan and references`
-- [ ] **direct** `1f3c8a9` - `add summary.md`
-- [ ] **direct** `9f4dcfb` - `add wanix-exec.md`
-- [ ] **direct** `657f4a5` - `add todo-archive-persist.md`
+- [x] **direct** `1f3c8a9` - `add summary.md`
+- [x] **direct** `9f4dcfb` - `add wanix-exec.md`
+- [x] **direct** `657f4a5` - `add todo-archive-persist.md`
 - [x] **direct** `708e846` - `add readat-investigation.md`
 
 Validation:
 
 - [ ] Build and manually run the exec, pipes, PTY, Go REPL, and GoJS exec examples.
 - [ ] Run `make smoketest` and resolve any `main`-specific example fixture updates.
-- [ ] Fix known whitespace errors before finalizing: generated `dist/wanix.min.js`, `examples/go-repl/index.html`, and `readat-investigation.md`.
+- [x] Fix known whitespace errors before finalizing: generated `dist/wanix.min.js`, `examples/go-repl/index.html`, and `readat-investigation.md`.
 
 ## Explicit omissions and superseded history
 
 - [x] **do not cherry-pick** `80d093c` - `rm exec-demo`; it only removes an earlier demo state.
 - [x] Do not restore the removed `misc/cbor/` tree. Use the verified module replacement from `12e9e35`.
-- [ ] Review the `go-repl` and `exec-demo` history together; `6f95170`, `80d093c`, `ee7c96a`, and `8cf7c10` represent an evolution, not four independent features.
+- [x] Review the `go-repl` and `exec-demo` history together; `6f95170`, `80d093c`, `ee7c96a`, and `8cf7c10` represent an evolution, not four independent features.
 
 ## Completion gate
 
 - [x] `git diff --check` is clean.
 - [ ] `go test ./...` passes.
-- [ ] `make js` succeeds and its generated output is committed deliberately.
+- [x] `make js` succeeds and its generated output is committed deliberately.
 - [ ] `make smoketest` passes where Chrome/Docker/TinyGo prerequisites are available.
 - [ ] `git range-diff origin/main...exec origin/main...HEAD` confirms that every intended behavior was retained or deliberately omitted.
