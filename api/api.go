@@ -24,6 +24,7 @@ func Responder(sess mux.Session, task *wanix.Task) {
 	peer.Handle("Close", rpc.HandlerFunc(syscaller.close))
 	peer.Handle("Sync", rpc.HandlerFunc(syscaller.sync))
 	peer.Handle("Read", rpc.HandlerFunc(syscaller.read))
+	peer.Handle("ReadAt", rpc.HandlerFunc(syscaller.readAt))
 	peer.Handle("Write", rpc.HandlerFunc(syscaller.write))
 	peer.Handle("WriteAt", rpc.HandlerFunc(syscaller.writeAt))
 	peer.Handle("ReadDir", rpc.HandlerFunc(syscaller.readDir))
@@ -52,5 +53,9 @@ func Responder(sess mux.Session, task *wanix.Task) {
 	peer.Handle("Readlink", rpc.HandlerFunc(syscaller.readlink))
 	peer.Handle("Symlink", rpc.HandlerFunc(syscaller.symlink))
 	peer.Handle("Chtimes", rpc.HandlerFunc(syscaller.chtimes))
+	peer.Handle("Spawn", rpc.HandlerFunc(syscaller.spawn))
+	peer.Handle("Wait", rpc.HandlerFunc(syscaller.wait))
+	peer.Handle("Pipe", rpc.HandlerFunc(syscaller.pipe))
+	peer.Handle("OpenNull", rpc.HandlerFunc(syscaller.openNull))
 	peer.Respond()
 }
