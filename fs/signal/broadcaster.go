@@ -12,6 +12,7 @@ type Broadcaster struct {
 	mu      sync.Mutex
 	readers map[int64]chan []byte
 	nextID  int64
+	last    []byte
 }
 
 // NewBroadcaster returns an empty broadcaster.
@@ -26,6 +27,9 @@ func (b *Broadcaster) AddReader() (id int64, ch chan []byte) {
 	b.nextID++
 	id = b.nextID
 	ch = make(chan []byte, 64)
+	if b.last != nil {
+		ch <- append([]byte(nil), b.last...)
+	}
 	b.readers[id] = ch
 	return id, ch
 }
@@ -43,6 +47,7 @@ func (b *Broadcaster) RemoveReader(id int64) {
 // Broadcast delivers a copy of data to every subscriber except exclude when exclude >= 0.
 func (b *Broadcaster) Broadcast(data []byte, exclude int64) {
 	b.mu.Lock()
+	b.last = append([]byte(nil), data...)
 	var targets []chan []byte
 	for id, ch := range b.readers {
 		if exclude >= 0 && id == exclude {
@@ -65,6 +70,7 @@ func (b *Broadcaster) Close() {
 		close(ch)
 	}
 	b.readers = make(map[int64]chan []byte)
+	b.last = nil
 }
 
 // SubscriberCount returns the number of active reader subscriptions.

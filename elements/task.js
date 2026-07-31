@@ -63,7 +63,9 @@ export class TaskElement extends WanixElement {
         await this.taskRoot.bind(this.path, `${this._taskpath}/self`);
 
         if (this._term) {
-            const termID = (await this._kernel.root.readText([this._termpath, "new"].join("/"))).trim();
+            const dimensions = this._terminalDimensions();
+            const allocation = dimensions ? ["new", ...dimensions].join("/") : "new";
+            const termID = (await this._kernel.root.readText([this._termpath, allocation].join("/"))).trim();
             this.term = [this._termpath, termID].join("/");
             await this._kernel.root.bind(this.term, [this.path, "term"].join("/"));
             if (this.id) {
@@ -94,6 +96,29 @@ export class TaskElement extends WanixElement {
 
     async start() {
         await this._kernel.root.writeFile([this._taskpath, this.rid, "ctl"].join("/"), "start");
+    }
+
+    _terminalDimensions() {
+        const expectedPath = this.alias ? `${this._taskpath}/${this.alias}/term` : null;
+        const candidates = [
+            this.querySelector(":scope > wanix-term"),
+            this.parentElement?.tagName === "WANIX-TERM" ? this.parentElement : null,
+            ...this._kernelHost.querySelectorAll("wanix-term"),
+        ];
+        const term = candidates.find((candidate) =>
+            candidate?.dataset?.cols && (!expectedPath || candidate.path === expectedPath),
+        ) || candidates.find((candidate) => candidate?.dataset?.cols);
+        if (!term) return null;
+
+        const { cols, rows, xpixel = "0", ypixel = "0" } = term.dataset;
+        return cols && rows ? [cols, rows, xpixel, ypixel] : null;
+    }
+
+    disconnectedCallback() {
+        if (this.rid && this._kernel) {
+            this._kernel.root.writeFile([this.path, "ctl"].join("/"), "terminate").catch(() => {});
+        }
+        super.disconnectedCallback();
     }
 }
 
