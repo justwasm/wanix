@@ -5,6 +5,7 @@ package worker
 import (
 	"context"
 	"strconv"
+	"syscall/js"
 
 	"tractor.dev/wanix"
 	"tractor.dev/wanix/fs"
@@ -68,10 +69,11 @@ func (d *Device) Alloc(t *wanix.Task) (*Resource, error) {
 	d.nextID++
 	rid := strconv.Itoa(d.nextID)
 	r := &Resource{
-		id:    d.nextID,
-		state: "allocated",
-		src:   "",
-		task:  t,
+		id:         d.nextID,
+		state:      "allocated",
+		src:        "",
+		task:       t,
+		wasmModule: js.Undefined(),
 	}
 	d.resources[rid] = r
 	return r, nil

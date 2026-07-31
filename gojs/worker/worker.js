@@ -29,9 +29,10 @@ self.addEventListener("message", async (e) => {
     go.exit = async (code) => {
         await fs.writeFile(`${TASKNS}/${tid}/exit`, code.toString());
     };
-    const result = await WebAssembly.instantiate(bin, go.importObject);
+    const module = e.data.worker.wasmModule || await WebAssembly.compile(bin);
+    const instance = await WebAssembly.instantiate(module, go.importObject);
     const start = performance.now();
-    await go.run(result.instance);
+    await go.run(instance);
     const end = performance.now();
     console.log(`gojs execution took ${end - start}ms`);
 });

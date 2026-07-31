@@ -30,5 +30,5 @@ func (d *JSDriver) Start(t *wanix.Task) error {
 	js.CopyBytesToJS(jsBuf, data)
 	blob := js.Global().Get("Blob").New([]any{jsBuf}, js.ValueOf(map[string]any{"type": "text/javascript"}))
 	url := js.Global().Get("URL").Call("createObjectURL", blob)
-	return worker.StartTaskWorker(d.Workers, t, url.String())
+	return worker.StartTaskWorker(d.Workers, t, url.String(), js.Undefined())
 }

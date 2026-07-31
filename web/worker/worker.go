@@ -23,11 +23,12 @@ import (
 )
 
 type Resource struct {
-	id     int
-	state  string
-	src    string
-	worker js.Value
-	task   *wanix.Task
+	id         int
+	state      string
+	src        string
+	worker     js.Value
+	task       *wanix.Task
+	wasmModule js.Value
 }
 
 type guestSetter interface {
@@ -141,7 +142,7 @@ func (r *Resource) Start(args ...string) error {
 	if parent := r.task.Parent(); parent != nil {
 		parentID = parent.ID()
 	}
-	r.worker.Call("postMessage", map[string]any{"worker": map[string]any{
+	payload := map[string]any{
 		"id":   r.id,
 		"tid":  r.task.ID(),
 		"ppid": parentID,
@@ -150,7 +151,11 @@ func (r *Resource) Start(args ...string) error {
 		"cmd":  strings.Join(args, " "),
 		"env":  env,
 		"url":  url,
-	}}, []any{port, p9})
+	}
+	if r.wasmModule.Truthy() {
+		payload["wasmModule"] = r.wasmModule
+	}
+	r.worker.Call("postMessage", map[string]any{"worker": payload}, []any{port, p9})
 
 	r.state = "running"
 	return nil

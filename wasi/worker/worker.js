@@ -23,6 +23,7 @@ self.onmessage = async (e) => {
     } else if (e.data.buffer) {
         console.log("wasi sync worker started");
 		await runWasi(e);
+		self.close();
 	}
 }
 
@@ -30,7 +31,7 @@ async function initializeSyncWorker(e) {
     const fs = new WanixHandle(e.data.worker.port);
     const tid = e.data.worker.tid;
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n").filter(line => line.includes("="));
-    const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
+    const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
     const bin = await fs.readFile(args[0]);
     const buffer = new SharedArrayBuffer(16384);
     const call = new CallBuffer(buffer);
@@ -39,6 +40,7 @@ async function initializeSyncWorker(e) {
     worker.postMessage({
         buffer, 
         bin,
+		wasmModule: e.data.worker.wasmModule,
         args,
         env,
 		stdin: `${TASKNS}/${tid}/fd/0`,
@@ -168,7 +170,7 @@ async function runWasi(e) {
 		"wasi_snapshot_preview1": wrapped,
 	});
 
-    const wasm = await WebAssembly.compile(e.data.bin);
+	const wasm = e.data.wasmModule || await WebAssembly.compile(e.data.bin);
 	const inst = await WebAssembly.instantiate(wasm, imports);
     const wasmString = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false }).decode(e.data.bin);
     let code = 0;
