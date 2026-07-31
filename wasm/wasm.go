@@ -31,6 +31,7 @@ import (
 	"tractor.dev/wanix/misc"
 	"tractor.dev/wanix/misc/allocfs"
 	"tractor.dev/wanix/misc/jsutil"
+	"tractor.dev/wanix/pty"
 	"tractor.dev/wanix/term"
 	"tractor.dev/wanix/vm"
 	"tractor.dev/wanix/web"
@@ -57,6 +58,7 @@ func main() {
 		{"#vm", vm.New(root)},
 		{"#pipe", &pipe.Allocator{}},
 		{"#signal", &signal.Allocator{}},
+		{"#ptmx", pty.New()},
 		// {"#ramfs", &memfs.Allocator{}},
 		{"#js", jsfs.NewFS(js.Global())},
 	}
