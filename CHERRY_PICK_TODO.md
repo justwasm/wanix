@@ -62,7 +62,7 @@ These commits establish the RPC contract that later GoJS/WASI worker and
 `os/exec` changes depend on. Keep their relative order.
 
 - [x] **direct** `9b3b3fd` - `rm syscall`
-- [ ] **direct** `c88d1e2` - `make flock report EWOULDBLOCK`
+- [x] **direct** `c88d1e2` - `make flock report EWOULDBLOCK`
 - [x] **direct** `d8d1bf9` - `api/flock.go: cleanup with channel-backed TryLock`
 - [x] **direct** `2be1deb` - `add flock syscall compat layer`
 - [x] **direct** `dcff87c` - `api: add /dev/null support via openNull RPC`
@@ -90,7 +90,7 @@ preserve behavior from both sides rather than choosing one wholesale.
 
 - [x] **adapt** `d12cf36` - `os/exec: remove .wasm suffix check from driver Check methods; add logging`
 - [x] **adapt** `d3846d6` - `os/exec: auto-detect WASM binary type (gojs vs wasi) for child tasks`
-- [ ] **adapt** `2a829ad` - `wasm: sync wasmMinDataAddr to 131072`
+- [x] **adapt** `2a829ad` - `wasm: sync wasmMinDataAddr to 131072`
 - [x] **adapt** `4afb077` - `gojs, wasi: sync readAt and flock into lib.js bundles`
 - [x] **adapt** `35f0981` - `gojs/worker: fix read syscall to respect buffer offset parameter`
 - [x] **adapt** `b1159a9` - `gojs/worker: fix write syscall to handle non-zero buffer offset`
@@ -101,8 +101,8 @@ preserve behavior from both sides rather than choosing one wholesale.
 - [x] **adapt** `5c5d439` - `fix(wasi/worker): forward cached wasmModule to inner sync worker`
 - [x] **adapt** `ed361ff` - `fix(wasm/cache): verify content hash to detect binary changes`
 - [x] **adapt** `53be125` - `fix: terminate Web Workers after Go/WASI program exit`
-- [ ] **adapt** `fd18766` - `fix: gate gojs worker debug logging on wanix-system debug attr`
-- [ ] **adapt** `e1c5bf5` - `fix: include worker metadata in startup logs`
+- [x] **adapt** `fd18766` - `fix: gate gojs worker debug logging on wanix-system debug attr`
+- [x] **adapt** `e1c5bf5` - `fix: include worker metadata in startup logs`
 
 Validation:
 
@@ -110,14 +110,14 @@ Validation:
 - [ ] Verify non-zero buffer-offset reads and writes.
 - [ ] Verify explicit process termination and natural program exit both release workers.
 - [ ] Verify cache reuse, then replace a WASM binary and confirm hash-based cache invalidation.
-- [ ] Update the debug attribute integration for `wanix-namespace` rather than restoring `wanix-system`.
+- [x] Update the debug attribute integration for `wanix-namespace` rather than restoring `wanix-system`.
 
 ## Phase 4: FSA persistence and write consistency
 
 These changes touch the same VFS/FSA semantics that `main` changed. Port them
 after Phase 1, treating the replacement of local CBOR as a dependency decision.
 
-- [ ] **adapt** `12e9e35` - `replace local cbor vendored dir with justwasm/cbor/v2 fork`
+- [x] **adapt** `12e9e35` - `replace local cbor vendored dir with justwasm/cbor/v2 fork`
 - [x] **adapt** `bba7282` - `fsa: replace CBOR #stat with IndexedDB metadata; fix directory rename`
 - [x] **adapt** `ff3aa1b` - `fix(fsa): return logical offset from Stat when WritableFileStream has uncommitted writes`
 - [x] **adapt** `1b5b00e` - `fix(fsa): buffer uncommitted writes to serve subsequent reads`
@@ -126,7 +126,7 @@ after Phase 1, treating the replacement of local CBOR as a dependency decision.
 
 Validation:
 
-- [ ] Decide whether the `github.com/justwasm/cbor/v2` fork is still required on top of `main`'s Go 1.26 dependency set.
+- [x] Decide whether the `github.com/justwasm/cbor/v2` fork is still required on top of `main`'s Go 1.26 dependency set.
 - [ ] Test directory rename, metadata persistence across reload, uncommitted-write reads, logical offsets, and close-error cleanup.
 
 ## Phase 5: Process behavior fixes
@@ -145,18 +145,18 @@ Validation:
 Apply dependency changes only after resolving the merged runtime API. Regenerate
 the distribution bundle instead of cherry-picking it before its sources.
 
-- [ ] **adapt** `ead5878` - `use repo url for toolkit-go replace`
+- [x] **adapt** `ead5878` - `use repo url for toolkit-go replace`
 - [x] **adapt** `7d982b2` - `xterm: add @xterm/addon-clipboard, image addon, cursor trail addon`
-- [ ] **direct** `806fe7a` - `add js.sh as alternative to buildjs.go`
+- [x] **direct** `806fe7a` - `add js.sh as alternative to buildjs.go`
 - [x] **adapt** `47d8dc3` - `fix: prevent esbuild loader configuration leaking between builds`
-- [ ] **adapt** `d434978` - `bump esbuild v0.28.1`
-- [ ] **regenerate, do not cherry-pick directly** `e13de29` - `make js`
+- [x] **adapt** `d434978` - `bump esbuild v0.28.1`
+- [x] **regenerate, do not cherry-pick directly** `e13de29` - `make js`
 
 Validation:
 
-- [ ] Keep `main`'s Go 1.26/p9/x-net updates while resolving `toolkit-go`, CBOR, esbuild, and xterm versions.
-- [ ] Run `go mod tidy`, inspect the result, run `npm install`, then run `make js`.
-- [ ] Check `git diff --check` and review the regenerated `dist/wanix.min.js`.
+- [x] Keep `main`'s Go 1.26/p9/x-net updates while resolving `toolkit-go`, CBOR, esbuild, and xterm versions.
+- [x] Run `go mod tidy`, inspect the result, run `npm install`, then run `make js`.
+- [x] Check `git diff --check` and review the regenerated `dist/wanix.min.js`.
 
 ## Phase 7: Examples and documentation
 
@@ -187,7 +187,7 @@ Validation:
 ## Explicit omissions and superseded history
 
 - [x] **do not cherry-pick** `80d093c` - `rm exec-demo`; it only removes an earlier demo state.
-- [ ] Do not restore the removed `misc/cbor/` tree. Choose the module replacement from `12e9e35` only if the upstream/fork behavior remains required.
+- [x] Do not restore the removed `misc/cbor/` tree. Use the verified module replacement from `12e9e35`.
 - [ ] Review the `go-repl` and `exec-demo` history together; `6f95170`, `80d093c`, `ee7c96a`, and `8cf7c10` represent an evolution, not four independent features.
 
 ## Completion gate

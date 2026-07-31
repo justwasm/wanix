@@ -15,7 +15,6 @@ WORKDIR /build
 USER root
 ENV GOFLAGS="-buildvcs=false"
 RUN git config --global --add safe.directory /build
-COPY ./misc/cbor ./misc/cbor
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -37,7 +36,6 @@ RUN apk add --no-cache \
     make
 COPY ./package.json .
 RUN npm install
-COPY ./misc/cbor ./misc/cbor
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -64,7 +62,6 @@ FROM tinygo-buildbase AS hostexport-tinygo
 RUN GOOS=linux GOARCH=386 tinygo build -o hostexport ./extras/hostexport/main.go
 
 FROM go-buildbase AS hostexport-go
-COPY ./misc/cbor ./misc/cbor
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
