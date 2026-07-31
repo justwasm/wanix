@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"strings"
@@ -243,19 +244,18 @@ func (r *Task) FD(fd int) (fs.File, string, error) {
 	if fd < 0 || fd > r.fdIdx {
 		return nil, "", fs.ErrInvalid
 	}
+	if fd < 3 {
+		if existing, ok := r.fds[fd]; ok {
+			return existing.file, existing.path, nil
+		}
+		if file, path, err := r.VFSOpen(fd); err == nil {
+			return file, path, nil
+		}
+		r.fds[fd] = &openFile{file: &nullFile{}, path: "/dev/null"}
+		return r.fds[fd].file, r.fds[fd].path, nil
+	}
 	if existing, ok := r.fds[fd]; ok {
 		return existing.file, existing.path, nil
-	}
-	if fd < 3 {
-		name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
-		// this should probably use #task/self but i think there are some
-		// issues to work out for that to work correctly here.
-		stdfile, err := r.NS().Open(name)
-		if err != nil {
-			return nil, "", err
-		}
-		r.fds[fd] = &openFile{file: stdfile, path: name}
-		return stdfile, name, nil
 	}
 	return nil, "", fs.ErrInvalid
 }
@@ -384,6 +384,24 @@ func (r *Task) OpenContext(ctx context.Context, name string) (fs.File, error) {
 type fdFS struct {
 	task *Task
 }
+
+// VFSOpen resolves a standard descriptor installed through namespace binds.
+// Task.FD holds r.mu while calling it, so fdFS must remain lock-free.
+func (r *Task) VFSOpen(fd int) (fs.File, string, error) {
+	name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
+	file, err := r.NS().Open(name)
+	if err != nil {
+		return nil, "", err
+	}
+	r.fds[fd] = &openFile{file: file, path: name}
+	return file, name, nil
+}
+
+type nullFile struct{ fs.File }
+
+func (f *nullFile) Read([]byte) (int, error)       { return 0, io.EOF }
+func (f *nullFile) Write(data []byte) (int, error) { return len(data), nil }
+func (f *nullFile) Close() error                   { return nil }
 
 func (f *fdFS) Open(name string) (fs.File, error) {
 	if name == "." {

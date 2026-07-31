@@ -1,6 +1,9 @@
 import { Terminal } from "@xterm/xterm";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
+import { ImageAddon } from "@xterm/addon-image";
 import xtermCss from "@xterm/xterm/css/xterm.css";
+import { CursorTrailAddon } from "xterm-addon-cursor-trail";
 import { WanixElement } from "./base.js";
 
 if (typeof document !== "undefined" && !document.getElementById("wanix-xterm-css")) {
@@ -46,13 +49,16 @@ export class TerminalElement extends WanixElement {
             ...this._getOptionsFromAttributes()
         });
 
+        this._term.loadAddon(new ClipboardAddon());
+        this._term.loadAddon(new ImageAddon());
+        this._term.loadAddon(new CursorTrailAddon());
         this._fitAddon = new FitAddon();
         this._term.loadAddon(this._fitAddon);
         this._term.open(this);
 
-        this._fitAddon.fit();
         this.#resizeObserver = new ResizeObserver(() => {
             this._fitAddon.fit();
+            this._storeDimensions();
         });
         this.#resizeObserver.observe(this);
         // this._resizeObserver.observe(this.parentElement);
@@ -61,6 +67,8 @@ export class TerminalElement extends WanixElement {
         this.style.display = "flex";
         this.style.flexDirection = "column";
         this.style.height = "100%";
+        this._fitAddon.fit();
+        this._storeDimensions();
     }
     
 
@@ -82,6 +90,9 @@ export class TerminalElement extends WanixElement {
     async _awake() {
         await this._resolvePath();
         await this.connect();
+        this._publishWinSize();
+        this._term.onResize(() => this._publishWinSize());
+        this.focus();
     }
 
     async _resolvePath() {
@@ -129,8 +140,8 @@ export class TerminalElement extends WanixElement {
     async connect() {
         if (!this._term) return;
 
-        const dataPath = this.path + "/data";
         if (!this.path || !this._kernel) return;
+        const dataPath = this.path + "/data";
 
         this.disconnect();
 
@@ -226,6 +237,9 @@ export class TerminalElement extends WanixElement {
         if (this.hasAttribute("scrollback")) {
             options.scrollback = parseInt(this.getAttribute("scrollback"), 10);
         }
+        if (this.hasAttribute("no-scrollbar")) {
+            options.scrollbar = { showScrollbar: false };
+        }
 
         return options;
     }
@@ -233,6 +247,29 @@ export class TerminalElement extends WanixElement {
     fit() {
         if (this._fitAddon) {
             this._fitAddon.fit();
+            this._storeDimensions();
+        }
+    }
+
+    _storeDimensions() {
+        if (!this._term) return;
+        this.dataset.cols = this._term.cols;
+        this.dataset.rows = this._term.rows;
+        this.dataset.xpixel = this.offsetWidth;
+        this.dataset.ypixel = this.offsetHeight;
+    }
+
+    async _publishWinSize() {
+        if (!this.path || !this._kernel || !this._term) return;
+        try {
+            const stream = await this._kernel.root.openWritable(`${this.path}/winch`);
+            const writer = stream.getWriter();
+            await writer.write(new TextEncoder().encode(
+                `${this._term.cols} ${this._term.rows} ${this.offsetWidth} ${this.offsetHeight}\n`,
+            ));
+            await writer.close();
+        } catch (err) {
+            console.error("wanix-term: winch write failed:", err);
         }
     }
 

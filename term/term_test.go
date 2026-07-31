@@ -170,3 +170,34 @@ func TestWinchBroadcast(t *testing.T) {
 		t.Fatalf("r1=%q r2=%q", s1, s2)
 	}
 }
+
+func TestNewSeedsWinchWithInitialDimensions(t *testing.T) {
+	ctx := context.Background()
+	s := New(nil)
+	newf, err := fs.OpenContext(ctx, s, "new/80/24/800/600")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer newf.Close()
+	buf := make([]byte, 16)
+	n, err := newf.Read(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(buf[:n]); got != "1\n" {
+		t.Fatalf("allocated %q, want 1", got)
+	}
+
+	winch, err := fs.OpenContext(ctx, s, "1/winch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer winch.Close()
+	n, err = winch.Read(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(buf[:n]); got != "80 24 800 600\n" {
+		t.Fatalf("winch = %q", got)
+	}
+}
