@@ -12,6 +12,8 @@ self.addEventListener("message", async (e) => {
     globalThis.worker = e.data.worker;
     globalThis.sys = fs; // deprecated
     const tid = e.data.worker.tid;
+    globalThis.process.pid = Number(tid);
+    globalThis.process.ppid = Number(e.data.worker.ppid || 0);
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
     const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
@@ -133,16 +135,15 @@ function cleanpath(path) {
 			// },
 			async write(fd, buf, offset, length, position, callback) {
                 log("write", fd, buf.length, offset, length, position);
-				if (offset !== 0 || length !== buf.length) {
-					callback(enosys());
-					return;
-				}
+                const data = (offset !== 0 || length !== buf.length)
+                    ? buf.subarray(offset, offset + length)
+                    : buf;
                 try {
                     if (position !== null) {
-                        callback(null, await sys.writeAt(fd, buf, position));
+                        callback(null, await sys.writeAt(fd, data, position));
                         return;
                     }
-                    callback(null, await sys.write(fd, buf));
+                    callback(null, await sys.write(fd, data));
                 } catch (e) {
                     errback(callback, e);
                 }
@@ -278,6 +279,21 @@ function cleanpath(path) {
                 path = cleanpath(path);
                 log("open", path, flags, mode);
                 try {
+                    if (path === "dev/ptmx" || path === "/dev/ptmx") {
+                        const result = await sys.openpty();
+                        globalThis._lastPtySlaveNum = result.slaveNum;
+                        callback(null, result.master);
+                        return;
+                    }
+                    const ptsMatch = path.match(/^\/?dev\/pts\/(\d+)$/);
+                    if (ptsMatch) {
+                        callback(null, await sys.openFile(`#ptmx/pts/${ptsMatch[1]}`, flags, mode));
+                        return;
+                    }
+                    if (path === "dev/null" || path === "/dev/null") {
+                        callback(null, await sys.openNull());
+                        return;
+                    }
                     callback(null, await sys.openFile(path, flags, mode));
                 } catch (e) {
                     errback(callback, e);
@@ -286,12 +302,14 @@ function cleanpath(path) {
 			async read(fd, buffer, offset, length, position, callback) { 
                 log("read", fd, buffer.length, offset, length, position);
                 try {
-                    const buf = await sys.read(fd, length);
+                    const buf = position !== null
+                        ? await sys.readAt(fd, length, position)
+                        : await sys.read(fd, length);
                     if (buf === null) {
                         callback(null, 0);
                         return;
                     }
-                    buffer.set(buf);
+                    buffer.set(buf, offset);
                     callback(null, buf.length);
                 } catch (e) {
                     errback(callback, e);
@@ -404,8 +422,37 @@ function cleanpath(path) {
                     errback(callback, e);
                 }
             },
+			async pipe(callback) {
+                log("pipe");
+                try {
+                    callback(null, await sys.pipe());
+                } catch (e) {
+                    errback(callback, e);
+                }
+            },
 		};
 	}
+
+    if (!globalThis.child_process) {
+        globalThis.child_process = {
+            async spawn(name, args, opts, callback) {
+                try {
+                    const result = await sys.spawn(name, args, opts);
+                    if (callback) callback(null, { pid: result.pid });
+                } catch (e) {
+                    if (callback) errback(callback, e);
+                }
+            },
+            async wait(pid, callback) {
+                try {
+                    const result = await sys.wait(pid);
+                    if (callback) callback(null, { pid, exitCode: result.exitCode });
+                } catch (e) {
+                    if (callback) errback(callback, e);
+                }
+            },
+        };
+    }
 
 	if (!globalThis.process) {
 		globalThis.process = {
@@ -427,6 +474,15 @@ function cleanpath(path) {
 			},
 			chdir(dir) {
                 globalThis.cwd = dir;
+            },
+			kill(pid) {
+                if (pid === globalThis.process.pid) {
+					sys.writeFile(`${TASKNS}/${pid}/exit`, "9")
+						.catch(() => {})
+						.finally(() => self.close());
+                    return;
+                }
+                sys.writeFile(`${TASKNS}/${pid}/ctl`, "terminate").catch(() => {});
             },
 		}
 	}

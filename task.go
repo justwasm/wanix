@@ -72,6 +72,13 @@ func SetWorker(t *Task, worker any) {
 	t.worker = worker
 }
 
+// SetCloser registers cleanup that runs after a task exits or is terminated.
+func SetCloser(t *Task, fn func()) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closer = fn
+}
+
 func GetWorker(t *Task) any {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -170,6 +177,11 @@ func (r *Task) Arg(idx int) string {
 		return ""
 	}
 	return r.args[idx]
+}
+
+// Args returns a copy of the parsed command arguments.
+func (r *Task) Args() []string {
+	return append([]string(nil), r.args...)
 }
 
 func (r *Task) Env() []string {
@@ -291,6 +303,10 @@ func (r *Task) taskMap() fskit.MapFS {
 					}
 					return
 				}
+				if len(args) == 1 && args[0] == "terminate" {
+					Terminate(r)
+					return
+				}
 			},
 		}),
 		"id":   misc.FieldFile(r.ID()),
@@ -335,8 +351,9 @@ func (r *Task) taskMap() fskit.MapFS {
 		"exit": misc.FieldFile(r.exit, func(in []byte) error {
 			if len(in) > 0 {
 				r.exit = strings.TrimSpace(string(in))
-				if r.closer != nil {
-					go r.closer()
+				if closer := r.closer; closer != nil {
+					r.closer = nil
+					go closer()
 				}
 			}
 			return nil

@@ -39,6 +39,13 @@ func (r *Resource) ID() string {
 	return strconv.Itoa(r.id)
 }
 
+func (r *Resource) Cleanup() {
+	if !r.worker.IsUndefined() {
+		r.worker.Call("terminate")
+	}
+	r.state = "terminated"
+}
+
 func (r *Resource) Start(args ...string) error {
 	env := make(map[string]any)
 
@@ -130,9 +137,14 @@ func (r *Resource) Start(args ...string) error {
 		return nil
 	}))
 
+	parentID := "0"
+	if parent := r.task.Parent(); parent != nil {
+		parentID = parent.ID()
+	}
 	r.worker.Call("postMessage", map[string]any{"worker": map[string]any{
 		"id":   r.id,
 		"tid":  r.task.ID(),
+		"ppid": parentID,
 		"port": port,
 		"p9":   p9,
 		"cmd":  strings.Join(args, " "),
@@ -162,10 +174,7 @@ func (r *Resource) rootFS() fskit.MapFS {
 				case "start":
 					r.Start(args[1:]...)
 				case "terminate":
-					if !r.worker.IsUndefined() {
-						r.worker.Call("terminate")
-					}
-					r.state = "terminated"
+					r.Cleanup()
 				}
 			},
 		}),
