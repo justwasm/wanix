@@ -19,7 +19,7 @@
         <p>Parent spawns child processes via <code>os/exec</code> — each child runs in its own Web Worker</p>
     </div>
 
-    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+    <wanix-namespace wasm="../../dist/wanix.debug.wasm" debug>
         <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
         <!-- Fetch both WASM binaries into the VFS -->
         <wanix-bind type="fetch" dst="child.wasm" src="./child.wasm"></wanix-bind>
@@ -30,16 +30,16 @@
 
         <!-- Render terminal showing parent output -->
         <wanix-term id="terminal" path="#task/demo/term"></wanix-term>
-    </wanix-system>
+    </wanix-namespace>
 
     <div class="status" id="status">Waiting for Wanix to initialize...</div>
 
     <script>
         // Update status when Wanix is ready
-        document.querySelector('wanix-system').addEventListener('ready', () => {
+        document.querySelector('wanix-namespace').addEventListener('ready', () => {
             document.getElementById('status').textContent = '✅ Wanix ready — parent.wasm started, check terminal for output';
         });
-        document.querySelector('wanix-system').addEventListener('error', (e) => {
+        document.querySelector('wanix-namespace').addEventListener('error', (e) => {
             document.getElementById('status').textContent = '❌ Error: ' + e.detail;
         });
     </script>
