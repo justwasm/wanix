@@ -117,6 +117,11 @@ func (t *Task) Register(kind string, driver TaskDriver) {
 	t.fsys.types[kind] = driver
 }
 
+// Alloc creates a child task in this task's namespace.
+func (t *Task) Alloc(kind string) (*Task, error) {
+	return t.fsys.Alloc(kind, t)
+}
+
 func (t *Task) Start() error {
 	if t.driver != nil {
 		return t.driver.Start(t)
@@ -195,6 +200,17 @@ func (r *Task) OpenFD(file fs.File, path string) int {
 	return r.fdIdx
 }
 
+// SetFD installs a file at an explicit descriptor number. Spawn uses this to
+// give child tasks their standard streams without depending on a global table.
+func (r *Task) SetFD(fd int, file fs.File, path string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fds[fd] = &openFile{file: file, path: path}
+	if fd > r.fdIdx {
+		r.fdIdx = fd
+	}
+}
+
 func (r *Task) CloseFD(fd int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -215,6 +231,9 @@ func (r *Task) FD(fd int) (fs.File, string, error) {
 	if fd < 0 || fd > r.fdIdx {
 		return nil, "", fs.ErrInvalid
 	}
+	if existing, ok := r.fds[fd]; ok {
+		return existing.file, existing.path, nil
+	}
 	if fd < 3 {
 		name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
 		// this should probably use #task/self but i think there are some
@@ -224,12 +243,9 @@ func (r *Task) FD(fd int) (fs.File, string, error) {
 			return nil, "", err
 		}
 		r.fds[fd] = &openFile{file: stdfile, path: name}
+		return stdfile, name, nil
 	}
-	f, ok := r.fds[fd]
-	if !ok {
-		return nil, "", fs.ErrInvalid
-	}
-	return f.file, f.path, nil
+	return nil, "", fs.ErrInvalid
 }
 
 func (r *Task) Open(name string) (fs.File, error) {
@@ -329,6 +345,7 @@ func (r *Task) taskMap() fskit.MapFS {
 			return fskit.Entry("binds", 0555, []byte(r.NS().String()+"\n")).Open(name)
 		}),
 		"ns": r.ns,
+		"fd": &fdFS{task: r},
 	}
 	if r.export != nil {
 		m["export"] = r.export
@@ -342,6 +359,28 @@ func (r *Task) Route(ctx context.Context, name string) (fs.FS, string, error) {
 
 func (r *Task) OpenContext(ctx context.Context, name string) (fs.File, error) {
 	return fs.OpenContext(ctx, r.taskMap(), name)
+}
+
+// fdFS exposes explicitly registered file descriptors to namespace bindings.
+// It intentionally does not lock Task.mu because Task.FD can reach this path
+// while already holding that lock.
+type fdFS struct {
+	task *Task
+}
+
+func (f *fdFS) Open(name string) (fs.File, error) {
+	if name == "." {
+		return fskit.Entry("fd", 0555|fs.ModeDir).Open(".")
+	}
+	fd, err := strconv.Atoi(name)
+	if err != nil {
+		return nil, fs.ErrNotExist
+	}
+	of, ok := f.task.fds[fd]
+	if !ok || of == nil {
+		return nil, fs.ErrNotExist
+	}
+	return of.file, nil
 }
 
 type TaskFS struct {
