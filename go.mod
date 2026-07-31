@@ -8,14 +8,16 @@ replace golang.org/x/sys => github.com/progrium/sys-wasm v0.0.0-20240620081741-5
 
 // patch on top of the feature/cbor-tinygo-beta branch
 // based on https://github.com/fxamacker/cbor/issues/686
-replace github.com/fxamacker/cbor/v2 => ./misc/cbor
+replace github.com/fxamacker/cbor/v2 => github.com/justwasm/cbor/v2 v2.9.0
 
 replace tractor.dev/wanix/fs/r2fs => ./fs/r2fs
 
+// Includes the duplex mux fix required by concurrent RPC close handling.
+replace tractor.dev/toolkit-go => github.com/justwasm/toolkit-go v0.0.0-20260606123829-ed3ab2dc842d
+
 require (
 	github.com/creack/pty v1.1.24
-	github.com/evanw/esbuild v0.28.0
-	github.com/fxamacker/cbor/v2 v2.9.0
+	github.com/evanw/esbuild v0.28.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/hanwen/go-fuse/v2 v2.7.2
 	github.com/hugelgupf/p9 v0.3.1-0.20240118043522-6f4f11e5296e
@@ -30,6 +32,7 @@ require (
 require (
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/creack/goselect v0.1.2 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect

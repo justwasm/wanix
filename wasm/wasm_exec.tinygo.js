@@ -302,7 +302,7 @@
 					},
 					// https://github.com/tinygo-org/tinygo/issues/5357
 
-				
+
 					// func ticks() int64
 					"runtime.ticks": () => {
 						return BigInt((timeOrigin + performance.now()) * 1e6);
@@ -441,7 +441,7 @@
 
 					// func valueInstanceOf(v ref, t ref) bool
 					"syscall/js.valueInstanceOf": (v_ref, t_ref) => {
- 						return unboxValue(v_ref) instanceof unboxValue(t_ref);
+					return unboxValue(v_ref) instanceof unboxValue(t_ref);
 					},
 
 					// func copyBytesToGo(dst []byte, src ref) (int, bool)

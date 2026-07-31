@@ -142,15 +142,17 @@ func (r *Resource) Start(args ...string) error {
 	if parent := r.task.Parent(); parent != nil {
 		parentID = parent.ID()
 	}
+	debug := sys.Element().Get("host").Call("hasAttribute", "debug").Bool()
 	payload := map[string]any{
-		"id":   r.id,
-		"tid":  r.task.ID(),
-		"ppid": parentID,
-		"port": port,
-		"p9":   p9,
-		"cmd":  strings.Join(args, " "),
-		"env":  env,
-		"url":  url,
+		"id":    r.id,
+		"tid":   r.task.ID(),
+		"ppid":  parentID,
+		"port":  port,
+		"p9":    p9,
+		"cmd":   strings.Join(args, " "),
+		"env":   env,
+		"url":   url,
+		"debug": debug,
 	}
 	if r.wasmModule.Truthy() {
 		payload["wasmModule"] = r.wasmModule

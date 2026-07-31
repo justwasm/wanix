@@ -7,7 +7,7 @@ const TASKNS = "#task";
 self.addEventListener("message", async (e) => {
     if (!e.data.worker) return;
 
-    console.log("gojs worker started");
+    _debug = e.data.worker.debug === true;
     const fs = new WanixHandle(e.data.worker.port);
     globalThis.worker = e.data.worker;
     globalThis.sys = fs; // deprecated
@@ -16,6 +16,7 @@ self.addEventListener("message", async (e) => {
     globalThis.process.ppid = Number(e.data.worker.ppid || 0);
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
     const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
+    console.log("gojs worker started", "tid:", tid, "args:", args, "env:", env);
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
     const bin = await fs.readFile(args[0]); 
 
@@ -37,8 +38,9 @@ self.addEventListener("message", async (e) => {
     console.log(`gojs execution took ${end - start}ms`);
 });
 
+let _debug = false;
 function log(...args) {
-    // console.log(...args);
+    if (_debug) console.log(...args);
 }
 
 
@@ -959,7 +961,7 @@ function cleanpath(path) {
 
 			// The linker guarantees global data starts from at least wasmMinDataAddr.
 			// Keep in sync with cmd/link/internal/ld/data.go:wasmMinDataAddr.
-			const wasmMinDataAddr = 4096 + 8192;
+			const wasmMinDataAddr = 131072;
 			if (offset >= wasmMinDataAddr) {
 				throw new Error("total length of command line and environment variables exceeds limit");
 			}

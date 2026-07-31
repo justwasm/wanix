@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"sync"
+	"syscall"
 
 	"tractor.dev/toolkit-go/duplex/rpc"
 )
@@ -95,7 +96,8 @@ func (s *syscaller) flock(r rpc.Responder, c *rpc.Call) {
 		if blocking {
 			l.Lock()
 		} else if !l.TryLock() {
-			r.Return(fmt.Errorf("resource temporarily unavailable"))
+			r.Return(syscall.EWOULDBLOCK)
+			return
 		}
 	case lockUnlock:
 		l.Unlock()
