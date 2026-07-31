@@ -62,6 +62,7 @@ function errnoCode(msg) {
     if (lower.includes("is a directory")) return "EISDIR";
     if (lower.includes("file already exists") || lower.includes("already exists")) return "EEXIST";
     if (lower.includes("invalid argument")) return "EINVAL";
+    if (lower.includes("temporarily unavailable") || lower.includes("try again")) return "EWOULDBLOCK";
     if (lower.includes("not supported")) return "ENOSYS";
     if (lower.includes("read-only")) return "EROFS";
     if (lower.includes("unauthorized") || lower.includes("http 401")) return "EACCES";
