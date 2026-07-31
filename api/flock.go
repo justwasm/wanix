@@ -1,24 +1,63 @@
 package api
 
 import (
+	"fmt"
 	"sync"
-	"syscall"
 
 	"tractor.dev/toolkit-go/duplex/rpc"
 )
 
+// POSIX flock operation bits. Keep these local because syscall does not
+// expose LOCK_* on js/wasm, while GoJS passes the standard values.
+const (
+	lockShared    = 1
+	lockExclusive = 2
+	lockNonblock  = 4
+	lockUnlock    = 8
+)
+
 var (
-	fileLocks   = make(map[string]*sync.Mutex)
+	fileLocks   = make(map[string]*fileLock)
 	fileLocksMu sync.Mutex
 )
 
-func getFileLock(path string) *sync.Mutex {
+// fileLock is a channel-backed mutex with a non-blocking acquisition path.
+// Unlike a goroutine-based TryLock, it cannot leak a waiter after failure.
+type fileLock struct {
+	ch chan struct{}
+}
+
+func newFileLock() *fileLock {
+	return &fileLock{ch: make(chan struct{}, 1)}
+}
+
+func (l *fileLock) Lock() {
+	l.ch <- struct{}{}
+}
+
+func (l *fileLock) Unlock() {
+	select {
+	case <-l.ch:
+	default:
+	}
+}
+
+func (l *fileLock) TryLock() bool {
+	select {
+	case l.ch <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func getFileLock(path string) *fileLock {
 	fileLocksMu.Lock()
 	defer fileLocksMu.Unlock()
 	if l, ok := fileLocks[path]; ok {
 		return l
 	}
-	l := new(sync.Mutex)
+	l := newFileLock()
 	fileLocks[path] = l
 	return l
 }
@@ -26,53 +65,41 @@ func getFileLock(path string) *sync.Mutex {
 func (s *syscaller) flock(r rpc.Responder, c *rpc.Call) {
 	var args []any
 	c.Receive(&args)
-
-	ufd, ok := args[0].(uint64)
-	if !ok {
-		panic("arg 0 is not a uint64")
+	if len(args) < 2 {
+		r.Return(fmt.Errorf("flock requires a file descriptor and operation"))
+		return
 	}
-	fd := int(ufd)
 
-	uflags, ok := args[1].(uint64)
+	fd, ok := args[0].(uint64)
 	if !ok {
-		panic("arg 1 is not a uint64")
+		r.Return(fmt.Errorf("invalid flock file descriptor"))
+		return
 	}
-	flags := int(uflags)
+	flags, ok := args[1].(uint64)
+	if !ok {
+		r.Return(fmt.Errorf("invalid flock operation"))
+		return
+	}
 
-	_, path, err := s.task.FD(fd)
+	_, path, err := s.task.FD(int(fd))
 	if err != nil {
 		r.Return(err)
 		return
 	}
 
 	l := getFileLock(path)
-	shouldLock := flags&syscall.LOCK_NB == 0
-	flags &^= syscall.LOCK_NB
-
-	switch flags {
-	case syscall.LOCK_EX, syscall.LOCK_SH:
-		if shouldLock {
+	blocking := flags&lockNonblock == 0
+	operation := flags &^ lockNonblock
+	switch operation {
+	case lockExclusive, lockShared:
+		if blocking {
 			l.Lock()
-		} else if !tryLock(l) {
-			r.Return(syscall.EAGAIN)
-			return
+		} else if !l.TryLock() {
+			r.Return(fmt.Errorf("resource temporarily unavailable"))
 		}
-	case syscall.LOCK_UN:
+	case lockUnlock:
 		l.Unlock()
-	}
-}
-
-// tryLock attempts to acquire the lock without blocking.
-func tryLock(m *sync.Mutex) bool {
-	locked := make(chan struct{}, 1)
-	go func() {
-		m.Lock()
-		locked <- struct{}{}
-	}()
-	select {
-	case <-locked:
-		return true
 	default:
-		return false
+		r.Return(fmt.Errorf("invalid flock operation: %d", operation))
 	}
 }
