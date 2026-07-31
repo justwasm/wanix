@@ -8,6 +8,14 @@ import (
 func (s *syscaller) open(r rpc.Responder, c *rpc.Call) {
 	var args []string
 	c.Receive(&args)
+	if len(args) == 0 {
+		r.Return(fs.ErrInvalid)
+		return
+	}
+	if isNullDev(args[0]) {
+		r.Return(uint64(s.task.OpenFD(&nullFile{name: args[0]}, args[0])))
+		return
+	}
 
 	f, err := s.task.NS().Open(args[0])
 	if err != nil {
@@ -22,6 +30,14 @@ func (s *syscaller) open(r rpc.Responder, c *rpc.Call) {
 func (s *syscaller) create(r rpc.Responder, c *rpc.Call) {
 	var args []string
 	c.Receive(&args)
+	if len(args) == 0 {
+		r.Return(fs.ErrInvalid)
+		return
+	}
+	if isNullDev(args[0]) {
+		r.Return(uint64(s.task.OpenFD(&nullFile{name: args[0]}, args[0])))
+		return
+	}
 
 	f, err := fs.Create(s.task.NS(), args[0])
 	if err != nil {
@@ -51,6 +67,10 @@ func (s *syscaller) openFile(r rpc.Responder, c *rpc.Call) {
 	if !ok {
 		panic("arg 2 is not a uint64")
 	}
+	if isNullDev(path) {
+		r.Return(uint64(s.task.OpenFD(&nullFile{name: path}, path)))
+		return
+	}
 
 	f, err := fs.OpenFile(s.task.NS(), path, int(flags), fs.FileMode(mode))
 	if err != nil {
@@ -60,4 +80,8 @@ func (s *syscaller) openFile(r rpc.Responder, c *rpc.Call) {
 
 	fd := s.task.OpenFD(f, path)
 	r.Return(uint64(fd))
+}
+
+func isNullDev(path string) bool {
+	return path == "dev/null" || path == "/dev/null"
 }
