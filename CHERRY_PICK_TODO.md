@@ -1,7 +1,7 @@
 # Exec Branch Cherry-pick TODO
 
-Source branch: `exec` at `e13de29`  
-Target branch: `main` at `76779e3`  
+Source branch: `exec` at `e13de29`
+Target branch: `main` at `76779e3`
 Fork point: `6ee3251`
 
 This is a dependency-ordered working checklist for selectively porting the
