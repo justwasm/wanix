@@ -89,25 +89,29 @@ function errback(cb, e) {
     cb(fsErr(msg, code));
 }
 
-// todo: support .. and ~
+// Normalize paths before they cross the RPC boundary.
 function cleanpath(path) {
     // console.log("cleanpath", path);
     if (path.startsWith("./")) {
         path = path.slice(2);
     }
-    if (path === "/") {
+    if (path === "/" || path === "") {
         return ".";
     }
     if (!path.startsWith("/")) {
         path = [globalThis.cwd, path].join("/");
     }
     path = path.replace(/\/+/g, '/'); // collapse multiple slashes
-    path = path.replace(/^\/+/, ''); // remove leading slash
-    path = path.replace(/\/+$/, ''); // remove trailing slash(es)
-	if (path === "") {
-		path = ".";
-	}
-    return path;
+    const stack = [];
+    for (const part of path.split('/')) {
+        if (part === "" || part === ".") continue;
+        if (part === "..") {
+            stack.pop();
+            continue;
+        }
+        stack.push(part);
+    }
+    return stack.join('/') || ".";
 }
 
 // below is based on wasm_exec.js from go 1.25.0
