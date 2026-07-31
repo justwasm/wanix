@@ -9,11 +9,11 @@
 </head>
 <body>
 
-    <wanix-system wasm="../../dist/wanix.debug.wasm" debug>
+    <wanix-namespace wasm="../../dist/wanix.debug.wasm" debug>
         <wanix-bind type="fetch" dst="exec.wasm" src="./exec.wasm"></wanix-bind>
         <wanix-task id="demo" cmd="/exec.wasm" type="gojs" env="PATH=/" term start></wanix-task>
         <wanix-term path="#task/demo/term" style="height: 100%;" no-scrollbar></wanix-term>
-    </wanix-system>
+    </wanix-namespace>
 
 </body>
 </html>
