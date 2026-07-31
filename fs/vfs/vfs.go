@@ -65,6 +65,7 @@ func (ns *NS) Context() context.Context {
 }
 
 func (ns *NS) Route(ctx context.Context, name string) (fs.FS, string, error) {
+	name = cleanPath(name)
 	return ns.table.Route(ctx, ns, name)
 }
 
@@ -76,19 +77,33 @@ func (ns *NS) UnbindAll() error {
 }
 
 func (ns *NS) Unbind(src fs.FS, srcPath, dstPath string) error {
+	srcPath = cleanPath(srcPath)
+	dstPath = cleanPath(dstPath)
 	ctx := fs.WithOrigin(fs.ContextFor(ns), ns, dstPath, "unbind")
 	return ns.table.Unbind(ctx, src, srcPath, dstPath)
+}
+
+// cleanPath converts absolute and redundant VFS paths into io/fs paths.
+func cleanPath(name string) string {
+	name = strings.TrimPrefix(path.Clean(name), "/")
+	if name == "" {
+		return "."
+	}
+	return name
 }
 
 // Bind adds a file or directory to the namespace.
 // Only the first placement option is used. Default is BindAfter.
 func (ns *NS) Bind(src fs.FS, srcPath, dstPath string, opts ...BindOption) error {
+	srcPath = cleanPath(srcPath)
+	dstPath = cleanPath(dstPath)
 	ctx := fs.WithOrigin(fs.ContextFor(ns), ns, dstPath, "bind")
 	return ns.table.Bind(ctx, src, srcPath, dstPath, opts...)
 }
 
 // Binds returns all fileinfo for bindings in a directory
 func (ns *NS) Binds(name string) ([]fs.FileInfo, error) {
+	name = cleanPath(name)
 	return ns.table.Binds(name)
 }
 
@@ -97,11 +112,13 @@ func (ns *NS) String() string {
 }
 
 func (ns *NS) Stat(name string) (fs.FileInfo, error) {
+	name = cleanPath(name)
 	ctx := fs.WithOrigin(ns.ctx, ns, name, "stat")
 	return ns.StatContext(ctx, name)
 }
 
 func (ns *NS) StatContext(ctx context.Context, name string) (fs.FileInfo, error) {
+	name = cleanPath(name)
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrNotExist}
 	}
@@ -148,6 +165,7 @@ func (ns *NS) StatContext(ctx context.Context, name string) (fs.FileInfo, error)
 
 // Open implements fs.FS interface
 func (ns *NS) Open(name string) (fs.File, error) {
+	name = cleanPath(name)
 	ctx := fs.WithOrigin(ns.ctx, ns, name, "open")
 	return ns.OpenContext(ctx, name)
 }
@@ -162,6 +180,7 @@ func (ns *NS) Open(name string) (fs.File, error) {
 // the tree. Route may return a single binding for writes; merged views
 // are produced here in Open.
 func (ns *NS) OpenContext(ctx context.Context, name string) (fs.File, error) {
+	name = cleanPath(name)
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}

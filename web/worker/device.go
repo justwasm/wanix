@@ -5,6 +5,7 @@ package worker
 import (
 	"context"
 	"strconv"
+	"syscall/js"
 
 	"tractor.dev/wanix"
 	"tractor.dev/wanix/fs"
@@ -68,11 +69,25 @@ func (d *Device) Alloc(t *wanix.Task) (*Resource, error) {
 	d.nextID++
 	rid := strconv.Itoa(d.nextID)
 	r := &Resource{
-		id:    d.nextID,
-		state: "allocated",
-		src:   "",
-		task:  t,
+		id:         d.nextID,
+		state:      "allocated",
+		src:        "",
+		task:       t,
+		wasmModule: js.Undefined(),
 	}
 	d.resources[rid] = r
 	return r, nil
+}
+
+// Release removes a finished worker resource and terminates its browser worker
+// if it is still running.
+func (d *Device) Release(rid string) {
+	r, ok := d.resources[rid]
+	if !ok {
+		return
+	}
+	if res, ok := r.(*Resource); ok {
+		res.Cleanup()
+	}
+	delete(d.resources, rid)
 }

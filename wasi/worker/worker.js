@@ -23,6 +23,7 @@ self.onmessage = async (e) => {
     } else if (e.data.buffer) {
         console.log("wasi sync worker started");
 		await runWasi(e);
+		self.close();
 	}
 }
 
@@ -30,7 +31,8 @@ async function initializeSyncWorker(e) {
     const fs = new WanixHandle(e.data.worker.port);
     const tid = e.data.worker.tid;
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n").filter(line => line.includes("="));
-    const args = (await fs.readText(`${TASKNS}/${tid}/cmd`)).trim().split(" ");
+    const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
+    args[0] = cleanpath(args[0]);
     const bin = await fs.readFile(args[0]);
     const buffer = new SharedArrayBuffer(16384);
     const call = new CallBuffer(buffer);
@@ -39,12 +41,28 @@ async function initializeSyncWorker(e) {
     worker.postMessage({
         buffer, 
         bin,
+		wasmModule: e.data.worker.wasmModule,
         args,
         env,
 		stdin: `${TASKNS}/${tid}/fd/0`,
 		stdout: `${TASKNS}/${tid}/fd/1`,
 		stderr: `${TASKNS}/${tid}/fd/2`,
     });
+}
+
+function cleanpath(path) {
+    if (path.startsWith("./")) path = path.slice(2);
+    if (path === "/" || path === "") return ".";
+    const stack = [];
+    for (const part of path.split('/')) {
+        if (part === "" || part === ".") continue;
+        if (part === "..") {
+            stack.pop();
+            continue;
+        }
+        stack.push(part);
+    }
+    return stack.join('/') || ".";
 }
 
 function messageHandler(fs, call, tid) {
@@ -56,37 +74,37 @@ function messageHandler(fs, call, tid) {
         // const start = performance.now();
         switch (e.data.method) {
         case "path_open":
-            const fd = await fs.open(e.data.path);
+            const fd = await fs.open(cleanpath(e.data.path));
             call.respond(fd);
             break;
 
         case "path_truncate":
-            await fs.truncate(e.data.path, e.data.to);
+            await fs.truncate(cleanpath(e.data.path), e.data.to);
             call.respond(true);
             break;
 
         case "path_size":
-            const stat = await fs.stat(e.data.path);
+            const stat = await fs.stat(cleanpath(e.data.path));
             call.respond(stat.Size);
             break;
 
         case "path_readdir":
-            const entries = await fs.readDir(e.data.path);
+            const entries = await fs.readDir(cleanpath(e.data.path));
             call.respond(entries);
             break;
 
         case "path_remove":
-            await fs.remove(e.data.path);
+            await fs.remove(cleanpath(e.data.path));
             call.respond(true);
             break;
 
         case "path_mkdir":
-            await fs.makeDir(e.data.path);
+            await fs.makeDir(cleanpath(e.data.path));
             call.respond(true);
             break;
 
         case "path_touch":
-            await fs.writeFile(e.data.path, "");
+            await fs.writeFile(cleanpath(e.data.path), "");
             call.respond(true);
             break;
 
@@ -168,7 +186,7 @@ async function runWasi(e) {
 		"wasi_snapshot_preview1": wrapped,
 	});
 
-    const wasm = await WebAssembly.compile(e.data.bin);
+	const wasm = e.data.wasmModule || await WebAssembly.compile(e.data.bin);
 	const inst = await WebAssembly.instantiate(wasm, imports);
     const wasmString = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false }).decode(e.data.bin);
     let code = 0;

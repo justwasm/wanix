@@ -3,7 +3,6 @@
 package worker
 
 import (
-	"strings"
 	"syscall/js"
 
 	"tractor.dev/wanix"
@@ -17,11 +16,15 @@ func FromTask(t *wanix.Task) js.Value {
 	return w.(js.Value)
 }
 
-func StartTaskWorker(svc *Device, t *wanix.Task, blobURL string) error {
+func StartTaskWorker(svc *Device, t *wanix.Task, blobURL string, wasmModule js.Value) error {
 	w, err := svc.Alloc(t)
 	if err != nil {
 		return err
 	}
-	args := append([]string{blobURL}, strings.Split(t.Cmd(), " ")...)
+	w.wasmModule = wasmModule
+	args := append([]string{blobURL}, t.Args()...)
+	wanix.SetCloser(t, func() {
+		svc.Release(w.ID())
+	})
 	return w.Start(args...)
 }

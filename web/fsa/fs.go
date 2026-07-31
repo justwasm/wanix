@@ -497,11 +497,8 @@ func (fsys *FS) Rename(oldname, newname string) error {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
 	}
 
-	// Handle metadata for rename: copy metadata from old to new path, then delete old
-	if metadata, exists := Metadata().GetMetadata(oldname); exists {
-		Metadata().SetMetadata(newname, metadata)
-	}
-	Metadata().DeleteMetadata(oldname)
+	// Handle metadata for rename: move all entries (file or directory tree)
+	Metadata().RenamePrefix(oldname, newname)
 
 	// Invalidate both paths in cache
 	fsys.invalidateCachedStat(oldname)
@@ -534,21 +531,25 @@ func (fsys *FS) openDirectory(dirPath string, handle js.Value) fs.File {
 		if metadata, hasMetadata := Metadata().GetMetadata(entryPath); hasMetadata {
 			mode = metadata.Mode
 			mtime = metadata.Mtime
-			size = 0 // Size will be loaded lazily when needed
 		} else {
 			// Set default modes for new entries
 			if isDir {
 				mode = DefaultDirMode | fs.ModeDir
-				size = 0
 			} else {
 				mode = DefaultFileMode
-				size = 0
 			}
 			mtime = time.Now()
 		}
 
 		if isDir {
 			mode |= fs.ModeDir
+		}
+
+		// For files, get actual size from OPFS
+		if !isDir {
+			if file, err := jsutil.AwaitErr(e.Call("getFile")); err == nil {
+				size = int64(file.Get("size").Int())
+			}
 		}
 
 		entries = append(entries, fskit.Entry(entryName, mode, size, mtime))

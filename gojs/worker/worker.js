@@ -12,6 +12,8 @@ self.addEventListener("message", async (e) => {
     globalThis.worker = e.data.worker;
     globalThis.sys = fs; // deprecated
     const tid = e.data.worker.tid;
+    globalThis.process.pid = Number(tid);
+    globalThis.process.ppid = Number(e.data.worker.ppid || 0);
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
     const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
@@ -27,9 +29,10 @@ self.addEventListener("message", async (e) => {
     go.exit = async (code) => {
         await fs.writeFile(`${TASKNS}/${tid}/exit`, code.toString());
     };
-    const result = await WebAssembly.instantiate(bin, go.importObject);
+    const module = e.data.worker.wasmModule || await WebAssembly.compile(bin);
+    const instance = await WebAssembly.instantiate(module, go.importObject);
     const start = performance.now();
-    await go.run(result.instance);
+    await go.run(instance);
     const end = performance.now();
     console.log(`gojs execution took ${end - start}ms`);
 });
@@ -62,6 +65,7 @@ function errnoCode(msg) {
     if (lower.includes("is a directory")) return "EISDIR";
     if (lower.includes("file already exists") || lower.includes("already exists")) return "EEXIST";
     if (lower.includes("invalid argument")) return "EINVAL";
+    if (lower.includes("temporarily unavailable") || lower.includes("try again")) return "EWOULDBLOCK";
     if (lower.includes("not supported")) return "ENOSYS";
     if (lower.includes("read-only")) return "EROFS";
     if (lower.includes("unauthorized") || lower.includes("http 401")) return "EACCES";
@@ -85,25 +89,29 @@ function errback(cb, e) {
     cb(fsErr(msg, code));
 }
 
-// todo: support .. and ~
+// Normalize paths before they cross the RPC boundary.
 function cleanpath(path) {
     // console.log("cleanpath", path);
     if (path.startsWith("./")) {
         path = path.slice(2);
     }
-    if (path === "/") {
+    if (path === "/" || path === "") {
         return ".";
     }
     if (!path.startsWith("/")) {
         path = [globalThis.cwd, path].join("/");
     }
     path = path.replace(/\/+/g, '/'); // collapse multiple slashes
-    path = path.replace(/^\/+/, ''); // remove leading slash
-    path = path.replace(/\/+$/, ''); // remove trailing slash(es)
-	if (path === "") {
-		path = ".";
-	}
-    return path;
+    const stack = [];
+    for (const part of path.split('/')) {
+        if (part === "" || part === ".") continue;
+        if (part === "..") {
+            stack.pop();
+            continue;
+        }
+        stack.push(part);
+    }
+    return stack.join('/') || ".";
 }
 
 // below is based on wasm_exec.js from go 1.25.0
@@ -132,16 +140,15 @@ function cleanpath(path) {
 			// },
 			async write(fd, buf, offset, length, position, callback) {
                 log("write", fd, buf.length, offset, length, position);
-				if (offset !== 0 || length !== buf.length) {
-					callback(enosys());
-					return;
-				}
+                const data = (offset !== 0 || length !== buf.length)
+                    ? buf.subarray(offset, offset + length)
+                    : buf;
                 try {
                     if (position !== null) {
-                        callback(null, await sys.writeAt(fd, buf, position));
+                        callback(null, await sys.writeAt(fd, data, position));
                         return;
                     }
-                    callback(null, await sys.write(fd, buf));
+                    callback(null, await sys.write(fd, data));
                 } catch (e) {
                     errback(callback, e);
                 }
@@ -227,6 +234,15 @@ function cleanpath(path) {
                     errback(callback, e);
                 }
             },
+			async flock(fd, how, callback) {
+                log("flock", fd, how);
+                try {
+                    await sys.flock(fd, how);
+                    callback(null);
+                } catch (e) {
+                    errback(callback, e);
+                }
+            },
 			lchown(path, uid, gid, callback) { callback(enosys()); },
 			link(path, link, callback) { callback(enosys()); },
 			async lstat(path, callback) {
@@ -268,6 +284,21 @@ function cleanpath(path) {
                 path = cleanpath(path);
                 log("open", path, flags, mode);
                 try {
+                    if (path === "dev/ptmx" || path === "/dev/ptmx") {
+                        const result = await sys.openpty();
+                        globalThis._lastPtySlaveNum = result.slaveNum;
+                        callback(null, result.master);
+                        return;
+                    }
+                    const ptsMatch = path.match(/^\/?dev\/pts\/(\d+)$/);
+                    if (ptsMatch) {
+                        callback(null, await sys.openFile(`#ptmx/pts/${ptsMatch[1]}`, flags, mode));
+                        return;
+                    }
+                    if (path === "dev/null" || path === "/dev/null") {
+                        callback(null, await sys.openNull());
+                        return;
+                    }
                     callback(null, await sys.openFile(path, flags, mode));
                 } catch (e) {
                     errback(callback, e);
@@ -276,12 +307,14 @@ function cleanpath(path) {
 			async read(fd, buffer, offset, length, position, callback) { 
                 log("read", fd, buffer.length, offset, length, position);
                 try {
-                    const buf = await sys.read(fd, length);
+                    const buf = position !== null
+                        ? await sys.readAt(fd, length, position)
+                        : await sys.read(fd, length);
                     if (buf === null) {
                         callback(null, 0);
                         return;
                     }
-                    buffer.set(buf);
+                    buffer.set(buf, offset);
                     callback(null, buf.length);
                 } catch (e) {
                     errback(callback, e);
@@ -394,8 +427,37 @@ function cleanpath(path) {
                     errback(callback, e);
                 }
             },
+			async pipe(callback) {
+                log("pipe");
+                try {
+                    callback(null, await sys.pipe());
+                } catch (e) {
+                    errback(callback, e);
+                }
+            },
 		};
 	}
+
+    if (!globalThis.child_process) {
+        globalThis.child_process = {
+            async spawn(name, args, opts, callback) {
+                try {
+                    const result = await sys.spawn(name, args, opts);
+                    if (callback) callback(null, { pid: result.pid });
+                } catch (e) {
+                    if (callback) errback(callback, e);
+                }
+            },
+            async wait(pid, callback) {
+                try {
+                    const result = await sys.wait(pid);
+                    if (callback) callback(null, { pid, exitCode: result.exitCode });
+                } catch (e) {
+                    if (callback) errback(callback, e);
+                }
+            },
+        };
+    }
 
 	if (!globalThis.process) {
 		globalThis.process = {
@@ -417,6 +479,15 @@ function cleanpath(path) {
 			},
 			chdir(dir) {
                 globalThis.cwd = dir;
+            },
+			kill(pid) {
+                if (pid === globalThis.process.pid) {
+					sys.writeFile(`${TASKNS}/${pid}/exit`, "9")
+						.catch(() => {})
+						.finally(() => self.close());
+                    return;
+                }
+                sys.writeFile(`${TASKNS}/${pid}/ctl`, "terminate").catch(() => {});
             },
 		}
 	}

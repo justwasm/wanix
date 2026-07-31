@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"strings"
@@ -72,6 +73,13 @@ func SetWorker(t *Task, worker any) {
 	t.worker = worker
 }
 
+// SetCloser registers cleanup that runs after a task exits or is terminated.
+func SetCloser(t *Task, fn func()) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closer = fn
+}
+
 func GetWorker(t *Task) any {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -115,6 +123,11 @@ func (t *Task) Tasks() (tasks []*Task) {
 // this is until we have a better registration system.
 func (t *Task) Register(kind string, driver TaskDriver) {
 	t.fsys.types[kind] = driver
+}
+
+// Alloc creates a child task in this task's namespace.
+func (t *Task) Alloc(kind string) (*Task, error) {
+	return t.fsys.Alloc(kind, t)
 }
 
 func (t *Task) Start() error {
@@ -167,6 +180,11 @@ func (r *Task) Arg(idx int) string {
 	return r.args[idx]
 }
 
+// Args returns a copy of the parsed command arguments.
+func (r *Task) Args() []string {
+	return append([]string(nil), r.args...)
+}
+
 func (r *Task) Env() []string {
 	return r.env
 }
@@ -195,6 +213,17 @@ func (r *Task) OpenFD(file fs.File, path string) int {
 	return r.fdIdx
 }
 
+// SetFD installs a file at an explicit descriptor number. Spawn uses this to
+// give child tasks their standard streams without depending on a global table.
+func (r *Task) SetFD(fd int, file fs.File, path string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fds[fd] = &openFile{file: file, path: path}
+	if fd > r.fdIdx {
+		r.fdIdx = fd
+	}
+}
+
 func (r *Task) CloseFD(fd int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -216,20 +245,19 @@ func (r *Task) FD(fd int) (fs.File, string, error) {
 		return nil, "", fs.ErrInvalid
 	}
 	if fd < 3 {
-		name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
-		// this should probably use #task/self but i think there are some
-		// issues to work out for that to work correctly here.
-		stdfile, err := r.NS().Open(name)
-		if err != nil {
-			return nil, "", err
+		if existing, ok := r.fds[fd]; ok {
+			return existing.file, existing.path, nil
 		}
-		r.fds[fd] = &openFile{file: stdfile, path: name}
+		if file, path, err := r.VFSOpen(fd); err == nil {
+			return file, path, nil
+		}
+		r.fds[fd] = &openFile{file: &nullFile{}, path: "/dev/null"}
+		return r.fds[fd].file, r.fds[fd].path, nil
 	}
-	f, ok := r.fds[fd]
-	if !ok {
-		return nil, "", fs.ErrInvalid
+	if existing, ok := r.fds[fd]; ok {
+		return existing.file, existing.path, nil
 	}
-	return f.file, f.path, nil
+	return nil, "", fs.ErrInvalid
 }
 
 func (r *Task) Open(name string) (fs.File, error) {
@@ -273,6 +301,10 @@ func (r *Task) taskMap() fskit.MapFS {
 					if err := r.Start(); err != nil {
 						log.Println(err)
 					}
+					return
+				}
+				if len(args) == 1 && args[0] == "terminate" {
+					Terminate(r)
 					return
 				}
 			},
@@ -319,8 +351,9 @@ func (r *Task) taskMap() fskit.MapFS {
 		"exit": misc.FieldFile(r.exit, func(in []byte) error {
 			if len(in) > 0 {
 				r.exit = strings.TrimSpace(string(in))
-				if r.closer != nil {
-					go r.closer()
+				if closer := r.closer; closer != nil {
+					r.closer = nil
+					go closer()
 				}
 			}
 			return nil
@@ -329,6 +362,7 @@ func (r *Task) taskMap() fskit.MapFS {
 			return fskit.Entry("binds", 0555, []byte(r.NS().String()+"\n")).Open(name)
 		}),
 		"ns": r.ns,
+		"fd": &fdFS{task: r},
 	}
 	if r.export != nil {
 		m["export"] = r.export
@@ -342,6 +376,46 @@ func (r *Task) Route(ctx context.Context, name string) (fs.FS, string, error) {
 
 func (r *Task) OpenContext(ctx context.Context, name string) (fs.File, error) {
 	return fs.OpenContext(ctx, r.taskMap(), name)
+}
+
+// fdFS exposes explicitly registered file descriptors to namespace bindings.
+// It intentionally does not lock Task.mu because Task.FD can reach this path
+// while already holding that lock.
+type fdFS struct {
+	task *Task
+}
+
+// VFSOpen resolves a standard descriptor installed through namespace binds.
+// Task.FD holds r.mu while calling it, so fdFS must remain lock-free.
+func (r *Task) VFSOpen(fd int) (fs.File, string, error) {
+	name := fmt.Sprintf("#task/%s/fd/%d", r.ID(), fd)
+	file, err := r.NS().Open(name)
+	if err != nil {
+		return nil, "", err
+	}
+	r.fds[fd] = &openFile{file: file, path: name}
+	return file, name, nil
+}
+
+type nullFile struct{ fs.File }
+
+func (f *nullFile) Read([]byte) (int, error)       { return 0, io.EOF }
+func (f *nullFile) Write(data []byte) (int, error) { return len(data), nil }
+func (f *nullFile) Close() error                   { return nil }
+
+func (f *fdFS) Open(name string) (fs.File, error) {
+	if name == "." {
+		return fskit.Entry("fd", 0555|fs.ModeDir).Open(".")
+	}
+	fd, err := strconv.Atoi(name)
+	if err != nil {
+		return nil, fs.ErrNotExist
+	}
+	of, ok := f.task.fds[fd]
+	if !ok || of == nil {
+		return nil, fs.ErrNotExist
+	}
+	return of.file, nil
 }
 
 type TaskFS struct {

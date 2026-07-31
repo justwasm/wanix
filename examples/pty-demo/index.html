@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Wanix PTY Demo</title>
+    <script type="module" src="../../dist/wanix.min.js"></script>
+    <style>
+        body { margin: 0; height: 100vh; background: #000; }
+        wanix-namespace { display: block; height: 100%; }
+        wanix-term { height: 100%; }
+    </style>
+</head>
+<body>
+    <wanix-namespace wasm="../../dist/wanix.debug.wasm" debug>
+        <!-- Fetch WASM binaries into the VFS -->
+        <wanix-bind type="fetch" dst="child.wasm" src="child.wasm"></wanix-bind>
+        <wanix-bind type="fetch" dst="pty-demo.wasm" src="pty-demo.wasm"></wanix-bind>
+
+        <!-- Run the PTY demo as a gojs task with terminal -->
+        <wanix-task id="demo" type="gojs" cmd="pty-demo.wasm" start term></wanix-task>
+
+        <!-- Render terminal connected to the task -->
+        <wanix-term path="#task/demo/term"></wanix-term>
+    </wanix-namespace>
+</body>
+</html>

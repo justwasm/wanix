@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tractor.dev/wanix/fs"
+	"tractor.dev/wanix/fs/fskit"
 	"tractor.dev/wanix/misc/jsutil"
 )
 
@@ -27,13 +28,11 @@ type FileHandle struct {
 	closed bool
 	mu     sync.Mutex
 	fsys   *FS // Reference to the FS instance for stat cache access
+	buf    []byte // buffer for uncommitted writes
 	js.Value
 }
 
 func (h *FileHandle) tryGetFile() (err error) {
-	if !h.file.IsUndefined() {
-		return nil
-	}
 	h.file, err = jsutil.AwaitErr(h.Value.Call("getFile"))
 	return
 }
@@ -61,12 +60,16 @@ func (h *FileHandle) Close() error {
 
 	if !h.writer.IsUndefined() {
 		_, err := jsutil.AwaitErr(h.writer.Call("close"))
+
+		// Always clean up, even on close error, to prevent stale state
+		// (stale cache entries cause subsequent reads to see truncated data).
+		h.fsys.invalidateCachedStat(h.path)
+		h.buf = nil
+		h.file = js.Undefined()
+
 		if err != nil {
 			return err
 		}
-
-		// Invalidate stat cache since closing a writer commits changes
-		h.fsys.invalidateCachedStat(h.path)
 	}
 
 	return nil
@@ -96,17 +99,27 @@ func (h *FileHandle) Truncate(size int64) error {
 }
 
 func (h *FileHandle) Size() int64 {
+	if len(h.buf) > 0 {
+		return int64(len(h.buf))
+	}
 	h.tryGetFile()
 	return int64(h.file.Get("size").Int())
 }
 
 func (h *FileHandle) Stat() (fs.FileInfo, error) {
-	// Check cache first (similar to httpfs pattern)
-	if info, err, found := h.fsys.getCachedStat(h.path); found {
-		if err != nil {
-			return nil, err
+	// Check cache first when there are no uncommitted writes
+	// (active writer means getFile() won't reflect pending data).
+	h.mu.Lock()
+	hasWriter := !h.writer.IsUndefined()
+	h.mu.Unlock()
+
+	if !hasWriter {
+		if info, err, found := h.fsys.getCachedStat(h.path); found {
+			if err != nil {
+				return nil, err
+			}
+			return info, nil
 		}
-		return info, nil
 	}
 
 	// Build fresh stat from JS API + metadata store
@@ -116,6 +129,20 @@ func (h *FileHandle) Stat() (fs.FileInfo, error) {
 		h.fsys.setCachedStatError(h.path, err)
 		return nil, err
 	}
+
+	// If there's an active writer, the WritableFileStream may have uncommitted
+	// data not yet visible to getFile(). Use h.offset as the logical EOF
+	// (sequential writes advance offset past the committed size).
+	h.mu.Lock()
+	if hasWriter && h.offset > info.Size() {
+		info = fskit.Entry(
+			info.Name(),
+			info.Mode(),
+			h.offset,
+			info.ModTime(),
+		)
+	}
+	h.mu.Unlock()
 
 	// Cache the result
 	h.fsys.setCachedStat(h.path, info)
@@ -151,6 +178,10 @@ func (h *FileHandle) Write(b []byte) (int, error) {
 	}
 	h.offset += int64(n)
 
+	// Buffer the data for subsequent reads (getFile() won't reflect
+	// uncommitted writes until the WritableFileStream is closed).
+	h.buf = append(h.buf, b...)
+
 	Metadata().SetTimes(h.path, time.Now(), time.Now())
 
 	// Invalidate stat cache since file size/mtime changed
@@ -169,6 +200,17 @@ func (h *FileHandle) Read(b []byte) (int, error) {
 
 	if h.closed {
 		return 0, fs.ErrClosed
+	}
+
+	// When there are uncommitted writes in the buffer, serve reads from
+	// the buffer (getFile() snapshot doesn't reflect writes until close).
+	if len(h.buf) > 0 {
+		if h.offset >= int64(len(h.buf)) {
+			return 0, io.EOF
+		}
+		n := copy(b, h.buf[h.offset:])
+		h.offset += int64(n)
+		return n, nil
 	}
 
 	size := h.Size()

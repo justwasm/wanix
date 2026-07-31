@@ -12,28 +12,28 @@ import (
 )
 
 func main() {
-	opts := api.BuildOptions{
-		Bundle:   true,
-		Write:    true,
-		Format:   api.FormatESModule,
-		External: []string{"util"},
-		LogLevel: api.LogLevelInfo,
+	buildOpts := func(entryPoint, outfile string) api.BuildOptions {
+		return api.BuildOptions{
+			Bundle:      true,
+			Write:       true,
+			Format:      api.FormatESModule,
+			External:    []string{"util"},
+			LogLevel:    api.LogLevelInfo,
+			EntryPoints: []string{entryPoint},
+			Outfile:     outfile,
+		}
 	}
 
 	var wg sync.WaitGroup
 
-	handleOpts := opts
-	handleOpts.EntryPoints = []string{"api/handle.js"}
-	handleOpts.Outfile = "dist/wanix.handle.js"
+	handleOpts := buildOpts("api/handle.js", "dist/wanix.handle.js")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		build(handleOpts)
 	}()
 
-	wanixOpts := opts
-	wanixOpts.EntryPoints = []string{"index.ts"}
-	wanixOpts.Outfile = "dist/wanix.js"
+	wanixOpts := buildOpts("index.ts", "dist/wanix.js")
 	wanixOpts.Loader = map[string]api.Loader{
 		".go.js":     api.LoaderText,
 		".tinygo.js": api.LoaderText,
@@ -56,20 +56,14 @@ func main() {
 		build(wanixMinOpts)
 	}()
 
-	wasiOpts := opts
-	wasiOpts.EntryPoints = []string{"wasi/mod.ts"}
-	wasiOpts.Outfile = "wasi/worker/lib.js"
-	wasiOpts.External = []string{"util"}
+	wasiOpts := buildOpts("wasi/mod.ts", "wasi/worker/lib.js")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		build(wasiOpts)
 	}()
 
-	gojsOpts := opts
-	gojsOpts.EntryPoints = []string{"gojs/mod.ts"}
-	gojsOpts.Outfile = "gojs/worker/lib.js"
-	gojsOpts.External = []string{"util"}
+	gojsOpts := buildOpts("gojs/mod.ts", "gojs/worker/lib.js")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

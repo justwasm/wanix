@@ -23,11 +23,12 @@ import (
 )
 
 type Resource struct {
-	id     int
-	state  string
-	src    string
-	worker js.Value
-	task   *wanix.Task
+	id         int
+	state      string
+	src        string
+	worker     js.Value
+	task       *wanix.Task
+	wasmModule js.Value
 }
 
 type guestSetter interface {
@@ -37,6 +38,13 @@ type guestSetter interface {
 
 func (r *Resource) ID() string {
 	return strconv.Itoa(r.id)
+}
+
+func (r *Resource) Cleanup() {
+	if !r.worker.IsUndefined() {
+		r.worker.Call("terminate")
+	}
+	r.state = "terminated"
 }
 
 func (r *Resource) Start(args ...string) error {
@@ -130,15 +138,24 @@ func (r *Resource) Start(args ...string) error {
 		return nil
 	}))
 
-	r.worker.Call("postMessage", map[string]any{"worker": map[string]any{
+	parentID := "0"
+	if parent := r.task.Parent(); parent != nil {
+		parentID = parent.ID()
+	}
+	payload := map[string]any{
 		"id":   r.id,
 		"tid":  r.task.ID(),
+		"ppid": parentID,
 		"port": port,
 		"p9":   p9,
 		"cmd":  strings.Join(args, " "),
 		"env":  env,
 		"url":  url,
-	}}, []any{port, p9})
+	}
+	if r.wasmModule.Truthy() {
+		payload["wasmModule"] = r.wasmModule
+	}
+	r.worker.Call("postMessage", map[string]any{"worker": payload}, []any{port, p9})
 
 	r.state = "running"
 	return nil
@@ -162,10 +179,7 @@ func (r *Resource) rootFS() fskit.MapFS {
 				case "start":
 					r.Start(args[1:]...)
 				case "terminate":
-					if !r.worker.IsUndefined() {
-						r.worker.Call("terminate")
-					}
-					r.state = "terminated"
+					r.Cleanup()
 				}
 			},
 		}),
