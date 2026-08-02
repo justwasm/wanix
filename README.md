@@ -171,6 +171,24 @@ Using `<wanix-vm>` requires a VM backend to be loaded using bind to `#vm/<type>`
 <wanix-bind dst="#vm/v86" type="archive" src="https://cdn.jsdelivr.net/npm/wanix-extras@0.4.0-rc2/dist/v86.tgz"></wanix-bind>
 ```
 
+For v86 networking, use the `netdev` attribute. `wisp` and `fetch` configure
+v86's top-level relay setting while retaining its default virtio device:
+
+```html
+<!-- Wisp relay -->
+<wanix-vm netdev="wisp,wisps://relay.example.com" start></wanix-vm>
+
+<!-- Browser fetch backend (no relay server) -->
+<wanix-vm netdev="fetch" start></wanix-vm>
+```
+
+The existing QEMU-style `user` form remains supported. Its
+`network_relay_url` key is also promoted to v86's top-level configuration:
+
+```html
+<wanix-vm netdev="user,id=net0,network_relay_url=fetch" start></wanix-vm>
+```
+
 ### `<wanix-term>`
 
 Render an [xterm.js](https://xtermjs.org/) terminal connected to a Wanix terminal device.

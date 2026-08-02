@@ -84,7 +84,13 @@ func parseFlags(args []string) (map[string]any, error) {
 		"vga_memory_size": 8 * 1024 * 1024, // 8MB
 	}
 	if netdev != "" {
-		cfg["net_device"] = parseNetdev(netdev)
+		result := parseNetdev(netdev)
+		if result.netDevice != nil {
+			cfg["net_device"] = result.netDevice
+		}
+		if result.networkRelayURL != "" {
+			cfg["network_relay_url"] = result.networkRelayURL
+		}
 	}
 	if virtfs != "" {
 		cfg["filesystem"] = parseVirtfs(virtfs)
@@ -159,30 +165,54 @@ func parseBootOrder(bootStr string) int {
 	return 0x80 // Default to hard disk
 }
 
-// parseNetdev parses network device configuration
-func parseNetdev(netdev string) map[string]any {
+// netdevResult keeps v86's device and relay settings separate. v86 expects
+// network_relay_url at the top level of its configuration, not inside
+// net_device.
+type netdevResult struct {
+	netDevice       map[string]any
+	networkRelayURL string
+}
+
+// parseNetdev parses network device configuration.
+//
+// Supported modes match v86's networking backends:
+//   - user:  QEMU-style key-value pairs (for example user,id=net0)
+//   - fetch: browser fetch-based networking without an external relay
+//   - wisp:  a Wisp relay URL (for example wisp,wisps://example.com)
+func parseNetdev(netdev string) netdevResult {
 	if netdev == "" {
-		return nil
+		return netdevResult{}
 	}
 
 	parts := strings.Split(netdev, ",")
 	if len(parts) == 0 {
-		return nil
+		return netdevResult{}
 	}
 
-	mode := parts[0]
-	if mode != "user" {
-		return nil
-	}
-
-	config := make(map[string]any)
-	for i := 1; i < len(parts); i++ {
-		kv := strings.SplitN(parts[i], "=", 2)
-		if len(kv) == 2 {
-			config[kv[0]] = kv[1]
+	switch strings.TrimSpace(parts[0]) {
+	case "user":
+		config := make(map[string]any)
+		var relayURL string
+		for i := 1; i < len(parts); i++ {
+			kv := strings.SplitN(parts[i], "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			if strings.TrimSpace(kv[0]) == "network_relay_url" {
+				relayURL = strings.TrimSpace(kv[1])
+				continue
+			}
+			config[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+		}
+		return netdevResult{netDevice: config, networkRelayURL: relayURL}
+	case "fetch":
+		return netdevResult{networkRelayURL: "fetch"}
+	case "wisp":
+		if len(parts) >= 2 {
+			return netdevResult{networkRelayURL: strings.TrimSpace(parts[1])}
 		}
 	}
-	return config
+	return netdevResult{}
 }
 
 // parseVirtfs parses VirtFS configuration
