@@ -78,7 +78,11 @@ async function createTerminal(fsys: any, config: Config) {
 	const taskID = (await fsys.readText(`${config.ns?.task}/new/${config.shell?.type || 'auto'}`)).trim();
 	const taskPath = [config.ns?.task, taskID].join("/");
 	await fsys.writeFile(`${taskPath}/cmd`, config.shell?.cmd);
-	await fsys.writeFile(`${taskPath}/dir`, config.shell?.wd);
+	// The task control plane treats an empty `dir` as a real directory path.
+	// Do not write it unless the Workbench shell has an explicit working directory.
+	if (config.shell?.wd) {
+		await fsys.writeFile(`${taskPath}/dir`, config.shell.wd);
+	}
 	// not sure the best way to do this but the bind paths need to be 
 	// relative to the root of that system. works fine until you change 
 	// namespaces to a mount of another system, because the bind paths need
