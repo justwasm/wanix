@@ -108,6 +108,11 @@ export class WorkbenchElement extends WanixElement {
       this.port.onmessage = async (event) => {
         const obj = await portCb();
         const transfer = [...Object.values(obj)];
+        const shell = this.tasks["shell"];
+        // Read the source attribute rather than the task instance field: when
+        // the Workbench lives outside its namespace host, activation timing can
+        // leave that field unset even though the template attribute is present.
+        const shellEnv = shell?.getAttribute("env")?.trim().split(/\s+/).filter(Boolean).join("\n") || shell?.env;
         obj["config"] = {
           term: this._term,
           raw: this.raw,
@@ -118,10 +123,10 @@ export class WorkbenchElement extends WanixElement {
             term: this._termpath,
           },
           shell: {
-            cmd: this.tasks["shell"]?.cmd,
-            type: this.tasks["shell"]?.type,
-            wd: this.tasks["shell"]?.wd || this.wd,
-            env: this.tasks["shell"]?.env,
+            cmd: shell?.cmd,
+            type: shell?.type,
+            wd: shell?.wd || this.wd,
+            env: shellEnv,
           },
         };
         event.data.port.postMessage(obj, transfer);
