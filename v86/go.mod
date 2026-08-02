@@ -9,7 +9,7 @@ replace golang.org/x/sys => github.com/progrium/sys-wasm v0.0.0-20240620081741-5
 replace tractor.dev/wanix => ../
 
 require (
-	github.com/evanw/esbuild v0.28.0
+	github.com/evanw/esbuild v0.28.1
 	tractor.dev/wanix v0.0.0-20260430024630-620f178de142
 )
 
