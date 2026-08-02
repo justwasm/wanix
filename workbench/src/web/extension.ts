@@ -104,10 +104,17 @@ async function createTerminal(fsys: any, config: Config) {
 	const common = commonPath(termPath, taskPath);
 	const termPathInner = (common.length > 0 ? termPath.slice(common.length+1) : termPath);
 	const taskPathInner = (common.length > 0 ? taskPath.slice(common.length+1) : taskPath);
+	// Mirror wanix-task.allocate(): establish the task-local `self` resource
+	// and its terminal before exposing terminal files to the shell.
+	await fsys.writeFile(`${taskPath}/ctl`, `bind ${taskPathInner} #task/self`);
+	await fsys.writeFile(`${taskPath}/ctl`, `bind ${termPathInner} #task/self/term`);
 	// console.log(`bind ${termPathInner}/program ${taskPathInner}/fd/0`);
 	await fsys.writeFile(`${taskPath}/ctl`, `bind ${termPathInner}/program ${taskPathInner}/fd/0`);
 	await fsys.writeFile(`${taskPath}/ctl`, `bind ${termPathInner}/program ${taskPathInner}/fd/1`);
 	await fsys.writeFile(`${taskPath}/ctl`, `bind ${termPathInner}/program ${taskPathInner}/fd/2`);
+	// Match wanix-task's terminal setup: Hush reads this path through
+	// TERM_WINCH=/winch to receive the current terminal dimensions.
+	await fsys.writeFile(`${taskPath}/ctl`, 'bind #task/self/term/winch winch');
 	await fsys.writeFile(`${taskPath}/ctl`, "start");
 
 	const writeEmitter = new vscode.EventEmitter<string>();
@@ -116,6 +123,7 @@ async function createTerminal(fsys: any, config: Config) {
 	const readable = await fsys.openReadable(`${termPath}/data`);
 	const writable = (await fsys.openWritable(`${termPath}/data`)).getWriter();
 	let buffer = '';
+	let winch = '';
 	return {
 		onDidWrite: writeEmitter.event,
 		open: () => {
@@ -150,9 +158,13 @@ async function createTerminal(fsys: any, config: Config) {
 			}
 		},
 		setDimensions: async (dimensions: vscode.TerminalDimensions) => {
-			// const winch = (await fsys.openWritable(`${termPath}/winch`)).getWriter();
-			// await winch.write(enc.encode(`${dimensions.columns} ${dimensions.rows}\n`));
-			// await winch.close();
+			const size = `${dimensions.columns} ${dimensions.rows}`;
+			if (!dimensions.columns || !dimensions.rows || size === winch) return;
+			winch = size;
+			const stream = await fsys.openWritable(`${termPath}/winch`);
+			const writer = stream.getWriter();
+			await writer.write(enc.encode(`${size} 0 0\n`));
+			await writer.close();
 		}
 	};
 }
