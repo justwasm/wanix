@@ -171,19 +171,21 @@ Using `<wanix-vm>` requires a VM backend to be loaded using bind to `#vm/<type>`
 <wanix-bind dst="#vm/v86" type="archive" src="https://cdn.jsdelivr.net/npm/wanix-extras@0.4.0-rc2/dist/v86.tgz"></wanix-bind>
 ```
 
-For v86 networking, use the `netdev` attribute. `wisp` and `fetch` configure
-v86's top-level relay setting while retaining its default virtio device:
+For v86 networking, use the QEMU-style `user` `netdev` form. v86 reads the
+device's `relay_url`; `wisp://` and `wisps://` select its built-in Wisp
+adapter, while `fetch` selects browser fetch networking:
 
 ```html
 <!-- Wisp relay -->
-<wanix-vm netdev="wisp,wisps://relay.example.com" start></wanix-vm>
+<wanix-vm netdev="user,type=virtio,relay_url=wisps://relay.example.com" start></wanix-vm>
 
 <!-- Browser fetch backend (no relay server) -->
-<wanix-vm netdev="fetch" start></wanix-vm>
+<wanix-vm netdev="user,type=virtio,relay_url=fetch" start></wanix-vm>
 ```
 
-The existing QEMU-style `user` form remains supported. Its
-`network_relay_url` key is also promoted to v86's top-level configuration:
+The `wisp,<url>` and `fetch` shorthands are also supported. `wss://` is a
+different, legacy relay backend; use `wisps://` for a Wisp service over TLS.
+The top-level v86 relay option is available through `network_relay_url`:
 
 ```html
 <wanix-vm netdev="user,id=net0,network_relay_url=fetch" start></wanix-vm>
