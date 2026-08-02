@@ -121,6 +121,7 @@ export class WorkbenchElement extends WanixElement {
             cmd: this.tasks["shell"]?.cmd,
             type: this.tasks["shell"]?.type,
             wd: this.tasks["shell"]?.wd || this.wd,
+            env: this.tasks["shell"]?.env,
           },
         };
         event.data.port.postMessage(obj, transfer);

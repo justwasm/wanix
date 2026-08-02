@@ -17,6 +17,7 @@ type Config = {
 		cmd: string;
 		type: string;
 		wd: string;
+		env: string;
 	}
 }
 
@@ -78,6 +79,9 @@ async function createTerminal(fsys: any, config: Config) {
 	const taskID = (await fsys.readText(`${config.ns?.task}/new/${config.shell?.type || 'auto'}`)).trim();
 	const taskPath = [config.ns?.task, taskID].join("/");
 	await fsys.writeFile(`${taskPath}/cmd`, config.shell?.cmd);
+	if (config.shell?.env) {
+		await fsys.writeFile(`${taskPath}/env`, config.shell.env);
+	}
 	// The task control plane treats an empty `dir` as a real directory path.
 	// Do not write it unless the Workbench shell has an explicit working directory.
 	if (config.shell?.wd) {
