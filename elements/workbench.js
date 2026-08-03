@@ -2,6 +2,7 @@ import { WanixElement } from "./base.js";
 
 const DEFAULT_ASSETS = new URL('workbench/', import.meta.url).href;
 const AMD_LOADER_STATE_KEY = "__wanixWorkbenchAmdLoader";
+const WORKBENCH_INSTANCE_KEY = "__wanixWorkbenchInstance";
 
 function loadScriptOnce(key, src) {
   const state = globalThis[key];
@@ -131,6 +132,17 @@ export class WorkbenchElement extends WanixElement {
     }
   
     _createWorkbench(portCb) {
+      if (globalThis[WORKBENCH_INSTANCE_KEY]) {
+        this.dispatchEvent(new CustomEvent("error", {
+          detail: new Error("VS Code web Workbench supports one instance per page. Reuse the existing wanix-workbench element."),
+        }));
+        return;
+      }
+      // VS Code's create() API is process-wide: its own implementation rejects
+      // every call after the first one. Mark ownership before loading its AMD
+      // module so concurrent Workbench elements cannot race into a black view.
+      globalThis[WORKBENCH_INSTANCE_KEY] = this;
+
       const ch = new MessageChannel();
       this.port = ch.port2;
       this.port.onmessage = async (event) => {
