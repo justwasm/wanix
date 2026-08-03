@@ -1,6 +1,34 @@
 import { WanixElement } from "./base.js";
 
 const DEFAULT_ASSETS = new URL('workbench/', import.meta.url).href;
+const AMD_LOADER_STATE_KEY = "__wanixWorkbenchAmdLoader";
+
+function loadScriptOnce(key, src) {
+  const state = globalThis[key];
+  if (state) {
+    if (state.src !== src) {
+      console.warn(`Wanix Workbench already uses ${state.src}; ignoring ${src}`);
+    }
+    return state.promise;
+  }
+
+  const script = document.createElement("script");
+  script.src = src;
+  const promise = new Promise((resolve, reject) => {
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+  });
+  globalThis[key] = { src, promise };
+  document.head.appendChild(script);
+  return promise;
+}
+
+function loadAmdLoader(src) {
+  if (typeof globalThis.require === "function") {
+    return Promise.resolve();
+  }
+  return loadScriptOnce(AMD_LOADER_STATE_KEY, src);
+}
   
 export class WorkbenchElement extends WanixElement {
     constructor() {
@@ -65,10 +93,8 @@ export class WorkbenchElement extends WanixElement {
       const outDir = new URL("out/", codeDir);
       const outRoot = outDir.href.replace(/\/?$/, "");
   
-      const nls = document.createElement("script");
-      nls.src = new URL("nls.messages.js", outDir).href;
-      const loader = document.createElement("script");
-      loader.src = new URL("vs/loader.js", outDir).href;
+      const nlsUrl = new URL("nls.messages.js", outDir).href;
+      const loaderUrl = new URL("vs/loader.js", outDir).href;
 
       // Check if a <link> to workbench.web.main.css already exists in <head>
       const cssAlreadyLoaded = Array.from(document.head.querySelectorAll('link[rel="stylesheet"]'))
@@ -96,10 +122,12 @@ export class WorkbenchElement extends WanixElement {
         go();
       };
   
-      loader.onload = runBootstrap;
-      loader.onerror = () => this.dispatchEvent(new CustomEvent("error", { detail: new Error("Failed to load VS Code loader") }));
-      document.head.appendChild(loader);
-      document.head.appendChild(nls);
+      Promise.all([
+        loadScriptOnce("__wanixWorkbenchNls", nlsUrl),
+        loadAmdLoader(loaderUrl),
+      ]).then(runBootstrap).catch((error) => {
+        this.dispatchEvent(new CustomEvent("error", { detail: error }));
+      });
     }
   
     _createWorkbench(portCb) {
