@@ -15,7 +15,7 @@ self.addEventListener("message", async (e) => {
     globalThis.process.pid = Number(tid);
     globalThis.process.ppid = Number(e.data.worker.ppid || 0);
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n");
-    const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
+    const args = await readTaskArgs(fs, tid);
     console.log("gojs worker started", "tid:", tid, "args:", args, "env:", env);
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
     const bin = await fs.readFile(args[0]); 
@@ -39,6 +39,15 @@ self.addEventListener("message", async (e) => {
 });
 
 let _debug = false;
+
+async function readTaskArgs(fs, tid) {
+    const args = JSON.parse(await fs.readText(`${TASKNS}/${tid}/args`));
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== "string")) {
+        throw new Error(`invalid task arguments for ${tid}`);
+    }
+    return args;
+}
+
 function log(...args) {
     if (_debug) console.log(...args);
 }

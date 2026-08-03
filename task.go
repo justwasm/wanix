@@ -2,6 +2,7 @@ package wanix
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -311,7 +312,10 @@ func (r *Task) taskMap() fskit.MapFS {
 		}),
 		"id":   misc.FieldFile(r.ID()),
 		"kind": misc.FieldFile(r.kind),
-		"args": misc.FieldFile(strings.Join(r.args, "\n")),
+		// Use JSON rather than a newline-delimited list. Arguments such as
+		// `go list -f` format strings legitimately contain newlines, which
+		// must remain part of one argv entry.
+		"args": misc.FieldFile(encodeTaskArgs(r.args)),
 		"cmd": misc.FieldFile(r.cmd, func(in []byte) error {
 			if len(in) > 0 {
 				r.cmd = strings.TrimSpace(string(in))
@@ -368,6 +372,17 @@ func (r *Task) taskMap() fskit.MapFS {
 		m["export"] = r.export
 	}
 	return m
+}
+
+func encodeTaskArgs(args []string) string {
+	if args == nil {
+		return "[]"
+	}
+	encoded, err := json.Marshal(args)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
 }
 
 func (r *Task) Route(ctx context.Context, name string) (fs.FS, string, error) {
