@@ -29,7 +29,7 @@ async function initializeSyncWorker(e) {
     const fs = new WanixHandle(e.data.worker.port);
     const tid = e.data.worker.tid;
     const env = (await fs.readText(`${TASKNS}/${tid}/env`)).trim().split("\n").filter(line => line.includes("="));
-    const args = (await fs.readText(`${TASKNS}/${tid}/args`)).trim().split("\n");
+    const args = await readTaskArgs(fs, tid);
     args[0] = cleanpath(args[0]);
     console.log("wasi worker started", "tid:", tid, "args:", args, "env:", env);
     const bin = await fs.readFile(args[0]);
@@ -47,6 +47,14 @@ async function initializeSyncWorker(e) {
 		stdout: `${TASKNS}/${tid}/fd/1`,
 		stderr: `${TASKNS}/${tid}/fd/2`,
     });
+}
+
+async function readTaskArgs(fs, tid) {
+    const args = JSON.parse(await fs.readText(`${TASKNS}/${tid}/args`));
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== "string")) {
+        throw new Error(`invalid task arguments for ${tid}`);
+    }
+    return args;
 }
 
 function cleanpath(path) {

@@ -3,7 +3,20 @@ package shlex
 import (
 	"fmt"
 	"log"
+	"reflect"
+	"testing"
 )
+
+func TestJoinSplitPreservesMultilineArgument(t *testing.T) {
+	want := []string{"go", "list", "-m", "-f", "{{.Path}}\n{{.Dir}}\n{{.GoVersion}}\n"}
+	got, err := Split(Join(want), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Split(Join(%q)) = %q", want, got)
+	}
+}
 
 func ExampleSplit() {
 	cmd := `cp -Rdp "file name" 'file name2' dir\ name`
