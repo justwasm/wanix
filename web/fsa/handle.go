@@ -45,6 +45,24 @@ func (h *FileHandle) tryCreateWritable(keepExisting bool) (err error) {
 		return fs.ErrNotSupported
 	}
 	h.writer, err = jsutil.AwaitErr(h.Value.Call("createWritable", map[string]any{"keepExistingData": keepExisting}))
+	if err != nil {
+		return err
+	}
+	// The OPFS spec does not guarantee that keepExistingData=false
+	// truncates the file. Chrome 120+ does; Safari/WebKit and older
+	// browsers leave the underlying file at its previous size, so the
+	// bytes from offsets [n, oldSize) of the previous owner would
+	// remain alongside the newly written bytes. Truncate to 0
+	// explicitly after creating the writable so behaviour is
+	// deterministic across browsers.
+	if !keepExisting {
+		if _, terr := jsutil.AwaitErr(h.writer.Call("write", map[string]any{
+			"type": "truncate",
+			"size": 0,
+		})); terr != nil {
+			err = terr
+		}
+	}
 	return
 }
 
