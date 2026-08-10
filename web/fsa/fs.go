@@ -100,6 +100,20 @@ func (fsys *FS) invalidateCachedStat(path string) {
 	delete(fsys.statCache, path)
 }
 
+// invalidateCachedStatPrefix removes cached stat results for `prefix`
+// itself and any path nested under it (matching `Metadata.RenamePrefix`
+// semantics). Used after Rename so descendants of oldname/newname don't
+// serve stale FileInfo between the rename and TTL expiry.
+func (fsys *FS) invalidateCachedStatPrefix(prefix string) {
+	fsys.cacheMu.Lock()
+	defer fsys.cacheMu.Unlock()
+	for key := range fsys.statCache {
+		if key == prefix || strings.HasPrefix(key, prefix+"/") {
+			delete(fsys.statCache, key)
+		}
+	}
+}
+
 // SetCacheTTL sets the cache TTL for stat requests (similar to httpfs)
 func (fsys *FS) SetCacheTTL(ttl time.Duration) {
 	fsys.cacheMu.Lock()
@@ -468,14 +482,6 @@ func (fsys *FS) Rename(oldname, newname string) error {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: fs.ErrInvalid}
 	}
 
-	ok, err := fs.Exists(fsys, oldname)
-	if err != nil {
-		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
-	}
-	if !ok {
-		return &fs.PathError{Op: "rename", Path: oldname, Err: fs.ErrNotExist}
-	}
-
 	oldDirHandle, err := fsys.walkDir(path.Dir(oldname))
 	if err != nil {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: fs.ErrNotExist}
@@ -486,6 +492,36 @@ func (fsys *FS) Rename(oldname, newname string) error {
 		return &fs.PathError{Op: "rename", Path: newname, Err: fs.ErrNotExist}
 	}
 
+	// Prefer the native OPFS FileSystemHandle.move(), which is atomic.
+	// Resolve the source handle by trying getDirectoryHandle first;
+	// OPFS throws TypeMismatchError if the source is a file, in which
+	// case we fall through to getFileHandle. Doing the lookup directly
+	// avoids an extra fs.Lstat round-trip (which would re-open the file
+	// just to read its kind) and folds the existence check in: both
+	// lookups failing means the source does not exist.
+	var srcHandle js.Value
+	srcHandle, err = jsutil.AwaitErr(oldDirHandle.Call("getDirectoryHandle", path.Base(oldname), map[string]any{"create": false}))
+	if err != nil {
+		srcHandle, err = jsutil.AwaitErr(oldDirHandle.Call("getFileHandle", path.Base(oldname), map[string]any{"create": false}))
+	}
+	if err != nil {
+		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
+	}
+
+	if !srcHandle.Get("move").IsUndefined() {
+		_, mErr := jsutil.AwaitErr(srcHandle.Call("move", newDirHandle, path.Base(newname)))
+		if mErr != nil {
+			return &fs.PathError{Op: "rename", Path: oldname, Err: mErr}
+		}
+		Metadata().RenamePrefix(oldname, newname)
+		fsys.invalidateCachedStatPrefix(oldname)
+		fsys.invalidateCachedStatPrefix(newname)
+		return nil
+	}
+
+	// Fallback: copy + remove. Not atomic — a reader can observe newname
+	// before oldname is removed, or both can exist briefly if removeEntry
+	// fails after CopyAll succeeded.
 	if err := fs.CopyAll(fsys, oldname, newname); err != nil {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
 	}
@@ -493,16 +529,13 @@ func (fsys *FS) Rename(oldname, newname string) error {
 	_, err = jsutil.AwaitErr(oldDirHandle.Call("removeEntry", path.Base(oldname), map[string]any{"recursive": true}))
 	if err != nil {
 		// Try to clean up the copy if delete fails
-		newDirHandle.Call("removeEntry", path.Base(newname), map[string]any{"recursive": true})
+		jsutil.Await(newDirHandle.Call("removeEntry", path.Base(newname), map[string]any{"recursive": true}))
 		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
 	}
 
-	// Handle metadata for rename: move all entries (file or directory tree)
 	Metadata().RenamePrefix(oldname, newname)
-
-	// Invalidate both paths in cache
-	fsys.invalidateCachedStat(oldname)
-	fsys.invalidateCachedStat(newname)
+	fsys.invalidateCachedStatPrefix(oldname)
+	fsys.invalidateCachedStatPrefix(newname)
 
 	return nil
 }
