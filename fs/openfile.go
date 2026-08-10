@@ -68,14 +68,15 @@ func OpenFile(fsys FS, name string, flag int, perm FileMode) (f File, err error)
 			}
 		}
 		if perm != 0 {
-			f.Close()
-			// close and reopen after chmod
-			// since close might clobber the chmod
+			// Apply perm on the path; do NOT close-reopen the file here.
+			// Reopening via fsys.Open resets the FileHandle back to
+			// append=true, which silently undoes any truncate semantics we
+			// just established via the O_TRUNC path above. Chmod is a
+			// metadata-only operation and does not require the file to be
+			// closed — perm persists across the lifetime of the file, and
+			// subsequent Stats see it through the metadata store, not by
+			// reopening.
 			if err := Chmod(fsys, name, perm); err != nil && !errors.Is(err, ErrNotSupported) {
-				return nil, err
-			}
-			f, err = fsys.Open(name)
-			if err != nil {
 				return nil, err
 			}
 		}
