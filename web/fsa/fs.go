@@ -486,6 +486,41 @@ func (fsys *FS) Rename(oldname, newname string) error {
 		return &fs.PathError{Op: "rename", Path: newname, Err: fs.ErrNotExist}
 	}
 
+	// Prefer the native OPFS FileSystemHandle.move(), which is atomic.
+	// If the source is a directory, walk to it and call move() on the
+	// directory handle itself. For files, resolve the file handle and
+	// call move() on it. Fall back to the copy + remove dance if move()
+	// is unavailable (older browsers).
+	srcInfo, err := fs.Lstat(fsys, oldname)
+	if err != nil {
+		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
+	}
+	isDir := srcInfo.IsDir()
+
+	var srcHandle js.Value
+	if isDir {
+		srcHandle, err = jsutil.AwaitErr(oldDirHandle.Call("getDirectoryHandle", path.Base(oldname), map[string]any{"create": false}))
+	} else {
+		srcHandle, err = jsutil.AwaitErr(oldDirHandle.Call("getFileHandle", path.Base(oldname), map[string]any{"create": false}))
+	}
+	if err != nil {
+		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
+	}
+
+	if !srcHandle.Get("move").IsUndefined() {
+		_, mErr := jsutil.AwaitErr(srcHandle.Call("move", newDirHandle, path.Base(newname)))
+		if mErr != nil {
+			return &fs.PathError{Op: "rename", Path: oldname, Err: mErr}
+		}
+		Metadata().RenamePrefix(oldname, newname)
+		fsys.invalidateCachedStat(oldname)
+		fsys.invalidateCachedStat(newname)
+		return nil
+	}
+
+	// Fallback: copy + remove. Not atomic — a reader can observe newname
+	// before oldname is removed, or both can exist briefly if removeEntry
+	// fails after CopyAll succeeded.
 	if err := fs.CopyAll(fsys, oldname, newname); err != nil {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
 	}
@@ -497,10 +532,7 @@ func (fsys *FS) Rename(oldname, newname string) error {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: err}
 	}
 
-	// Handle metadata for rename: move all entries (file or directory tree)
 	Metadata().RenamePrefix(oldname, newname)
-
-	// Invalidate both paths in cache
 	fsys.invalidateCachedStat(oldname)
 	fsys.invalidateCachedStat(newname)
 
