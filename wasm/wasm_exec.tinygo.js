@@ -88,10 +88,10 @@
 	if (!global.process) {
 		global.process = {
 			env: {}, // added for vscode compat
-			getuid() { return -1; },
-			getgid() { return -1; },
-			geteuid() { return -1; },
-			getegid() { return -1; },
+			getuid() { return 0; },
+			getgid() { return 0; },
+			geteuid() { return 0; },
+			getegid() { return 0; },
 			getgroups() { throw enosys(); },
 			pid: -1,
 			ppid: -1,
