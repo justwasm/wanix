@@ -22,7 +22,7 @@ func (d *JSDriver) Check(t *wanix.Task) bool {
 }
 
 func (d *JSDriver) Start(t *wanix.Task) error {
-	data, err := fs.ReadFile(d.Root.NS(), t.Arg(0))
+	data, err := fs.ReadFile(d.Root.NS(), t.LookPath(t.Arg(0)))
 	if err != nil {
 		return err
 	}
