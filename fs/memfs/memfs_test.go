@@ -101,6 +101,35 @@ func TestMemFSChmod(t *testing.T) {
 	}
 }
 
+func TestMemFSWriteFilePerm(t *testing.T) {
+	m := New()
+
+	// WriteFile must apply perm to the created file, even though memfs
+	// Create defaults to 0644 (regression: perm was silently dropped).
+	if err := fs.WriteFile(m, "bin", []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	info, err := fs.Stat(m, "bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := info.Mode().Perm(), fs.FileMode(0755); got != want {
+		t.Errorf("WriteFile mode = %o, want %o", got, want)
+	}
+
+	// Overwriting an existing file must also update its mode.
+	if err := fs.WriteFile(m, "bin", []byte("#!/bin/sh\necho hi\n"), 0711); err != nil {
+		t.Fatal(err)
+	}
+	info, err = fs.Stat(m, "bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := info.Mode().Perm(), fs.FileMode(0711); got != want {
+		t.Errorf("WriteFile overwrite mode = %o, want %o", got, want)
+	}
+}
+
 func TestMemFSRemove(t *testing.T) {
 	m := From(fskit.MapFS{
 		"hello":   fskit.RawNode([]byte("hello, world\n")),

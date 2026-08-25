@@ -36,6 +36,13 @@ func WriteFile(fsys FS, filename string, data []byte, perm FileMode) error {
 	if err1 := f.Close(); err == nil {
 		err = err1
 	}
-	// TODO: use perm?
-	return err
+	if err != nil {
+		return err
+	}
+	if perm != 0 {
+		// Create doesn't take a mode, so apply perm explicitly.
+		// Filesystems that implement WriteFileFS never reach this fallback.
+		return Chmod(fsys, filename, perm)
+	}
+	return nil
 }
