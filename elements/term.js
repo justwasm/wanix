@@ -2,6 +2,8 @@ import { Terminal } from "@xterm/xterm";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import xtermCss from "@xterm/xterm/css/xterm.css";
 import { CursorTrailAddon } from "xterm-addon-cursor-trail";
 import { WanixElement } from "./base.js";
@@ -52,6 +54,9 @@ export class TerminalElement extends WanixElement {
         this._term.loadAddon(new ClipboardAddon());
         this._term.loadAddon(new ImageAddon());
         this._term.loadAddon(new CursorTrailAddon());
+        this._term.loadAddon(new Unicode11Addon());
+        this._term.unicode.activeVersion = "11";
+        this._term.loadAddon(new WebLinksAddon());
         this._fitAddon = new FitAddon();
         this._term.loadAddon(this._fitAddon);
         this._term.open(this);
