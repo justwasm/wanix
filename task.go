@@ -415,6 +415,17 @@ func (r *Task) LookPath(name string) string {
 	return name
 }
 
+// SetArg0 replaces the program name, mirroring how execvp exposes the
+// resolved path as argv[0]. Spawned workers re-read the binary by this
+// name, so drivers call it after LookPath to keep the process consistent.
+func (r *Task) SetArg0(name string) {
+	if len(r.args) == 0 {
+		r.args = []string{name}
+	} else {
+		r.args[0] = name
+	}
+}
+
 // pathDirs returns the directories searched by LookPath, from the task's
 // PATH environment, defaulting to the conventional dirs when unset.
 func (r *Task) pathDirs() []string {
