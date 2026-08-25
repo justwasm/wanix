@@ -47,4 +47,15 @@ func TestTaskLookPath(t *testing.T) {
 	if got := task.LookPath("hello"); got != "/bin/hello" {
 		t.Errorf("LookPath with default PATH = %q, want %q", got, "/bin/hello")
 	}
+
+	// SetArg0 rewrites the program name so spawned workers re-read the
+	// binary from the resolved path.
+	task.SetArg0("/bin/hello")
+	if got := task.Arg(0); got != "/bin/hello" {
+		t.Errorf("SetArg0 = %q, want %q", got, "/bin/hello")
+	}
+	task.SetArg0("bare")
+	if got := task.Arg(0); got != "bare" {
+		t.Errorf("SetArg0 on existing args = %q, want %q", got, "bare")
+	}
 }

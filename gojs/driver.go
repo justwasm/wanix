@@ -43,5 +43,8 @@ func (d *Driver) Start(t *wanix.Task) error {
 	if err != nil {
 		return err
 	}
+	// The worker re-reads the binary from the task's args, so argv[0] must
+	// be the resolved path, not the bare name the driver was started with.
+	t.SetArg0(program)
 	return worker.StartTaskWorker(d.Workers, t, gojsworker.BlobURL(), module)
 }
