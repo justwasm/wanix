@@ -17,7 +17,7 @@ type Driver struct {
 }
 
 func (d *Driver) Check(t *wanix.Task) bool {
-	typ, err := wasmutil.DetectType(t.NS(), t.Arg(0))
+	typ, err := wasmutil.DetectType(t.NS(), t.LookPath(t.Arg(0)))
 	if err != nil {
 		// log.Println("error detecting wasm type", err)
 		return false
@@ -29,7 +29,8 @@ func (d *Driver) Check(t *wanix.Task) bool {
 }
 
 func (d *Driver) Start(t *wanix.Task) error {
-	f, err := t.NS().Open(t.Arg(0))
+	program := t.LookPath(t.Arg(0))
+	f, err := t.NS().Open(program)
 	if err != nil {
 		return err
 	}
@@ -38,7 +39,7 @@ func (d *Driver) Start(t *wanix.Task) error {
 	if err != nil {
 		return err
 	}
-	module, err := cache.GetOrCompile(t.Arg(0), bin)
+	module, err := cache.GetOrCompile(program, bin)
 	if err != nil {
 		return err
 	}

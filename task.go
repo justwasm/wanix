@@ -393,6 +393,39 @@ func (r *Task) OpenContext(ctx context.Context, name string) (fs.File, error) {
 	return fs.OpenContext(ctx, r.taskMap(), name)
 }
 
+// LookPath resolves a program name to a path in the task namespace using
+// the task's PATH environment, mirroring execvp semantics. Names that
+// already contain a separator are returned unchanged. If no PATH entry
+// matches, the bare name is returned so drivers still try it relative to
+// the namespace root and surface the usual "file does not exist" error.
+func (r *Task) LookPath(name string) string {
+	if name == "" || strings.Contains(name, "/") {
+		return name
+	}
+	for _, dir := range r.pathDirs() {
+		candidate := name
+		if dir != "" {
+			candidate = dir + "/" + name
+		}
+		ok, err := fs.Exists(r.NS(), candidate)
+		if err == nil && ok {
+			return candidate
+		}
+	}
+	return name
+}
+
+// pathDirs returns the directories searched by LookPath, from the task's
+// PATH environment, defaulting to the conventional dirs when unset.
+func (r *Task) pathDirs() []string {
+	for _, kv := range r.env {
+		if v, ok := strings.CutPrefix(kv, "PATH="); ok {
+			return strings.Split(v, ":")
+		}
+	}
+	return []string{"/bin", "/usr/bin"}
+}
+
 // fdFS exposes explicitly registered file descriptors to namespace bindings.
 // It intentionally does not lock Task.mu because Task.FD can reach this path
 // while already holding that lock.
