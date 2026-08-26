@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime/debug"
 	"net/url"
 	"path"
 	"strconv"
@@ -229,7 +230,8 @@ func main() {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					reject.Invoke(js.ValueOf(r))
+					log.Printf("setupNamespace panic: %#v\n%s", r, string(debug.Stack()))
+					reject.Invoke(js.ValueOf(fmt.Sprintf("%v", r)))
 				}
 			}()
 			if taskID != "1" { // leave root namespace alone
