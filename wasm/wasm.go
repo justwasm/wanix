@@ -35,6 +35,7 @@ import (
 	"tractor.dev/wanix/term"
 	"tractor.dev/wanix/vm"
 	"tractor.dev/wanix/web"
+	"tractor.dev/wanix/web/fsa"
 	"tractor.dev/wanix/web/idbfs"
 	"tractor.dev/wanix/web/jsfs"
 	"tractor.dev/wanix/web/sys"
@@ -339,6 +340,24 @@ func main() {
 					// TODO: FIX this, why do we have to chmod here? we set mode in writefile!
 					if err := fs.Chmod(task.NS(), dst, perm); err != nil {
 						log.Println("error chmodding fetch", err)
+						return
+					}
+				case typ == "localdir":
+					// data is a Promise resolving to a FileSystemDirectoryHandle,
+					// picked via window.showDirectoryPicker() by the JS shell
+					// (must be invoked within a user gesture).
+					v, err := jsutil.AwaitErr(binding.Get("data"))
+					if err != nil {
+						log.Println("error getting localdir handle", err)
+						return
+					}
+					if v.Get("kind").String() != "directory" {
+						reject.Invoke(fmt.Errorf("localdir: data must resolve to a FileSystemDirectoryHandle"))
+						return
+					}
+					localFS := fsa.NewFS(v)
+					if err := task.NS().Bind(localFS, ".", dst); err != nil {
+						log.Println("error binding localdir", err)
 						return
 					}
 				case typ == "ns":
