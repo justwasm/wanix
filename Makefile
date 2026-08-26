@@ -96,8 +96,13 @@ wasm-go: wasi/worker/lib.js
 	ls -lah $(DIST_DIR)/wanix.debug.wasm
 .PHONY: wasm-go
 
+## Patch @xterm/xterm with PR #6059 (touch inertia NaN mouse reports)
+patch-xterm:
+	node scripts/patch-xterm.mjs
+.PHONY: patch-xterm
+
 ## Build JavaScript modules
-js: node_modules
+js: node_modules patch-xterm
 	mkdir -p $(DIST_DIR)
 	go run buildjs.go
 .PHONY: js
