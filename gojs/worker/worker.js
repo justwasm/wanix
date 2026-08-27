@@ -336,7 +336,10 @@ function cleanpath(path) {
                 log("readdir", path);
                 try {
                     const entries = await sys.readDir(path);
-                    callback(null, (entries||[]).map(e => e.replace("/", "")));
+                    // Kernel ReadDir appends "/" to directory entries; strip
+                    // only that trailing marker so names containing "/" (e.g.
+                    // JSFS keys like globalThis["foo/bar"]) survive intact.
+                    callback(null, (entries||[]).map(e => e.replace(/\/$/, "")));
                 } catch (e) {
                     errback(callback, e);
                 }
