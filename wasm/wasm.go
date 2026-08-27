@@ -90,7 +90,6 @@ func main() {
 			q.Set("token", t)
 			u.RawQuery = q.Encode()
 		}
-		fmt.Println("url", u.String())
 		hfs := httpfs.New(u.String(), nil)
 		if _, err := hfs.Stat("."); err != nil {
 			if !errors.Is(err, fs.ErrNotExist) {

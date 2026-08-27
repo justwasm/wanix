@@ -2,7 +2,6 @@ package allocfs
 
 import (
 	"context"
-	"fmt"
 	"path"
 	"strconv"
 	"strings"
@@ -204,7 +203,6 @@ var (
 )
 
 func (f *newFS) BindAlloc(ctx context.Context, src, dst string, opts map[string]string) (fs.FS, string, error) {
-	fmt.Println("bind alloc", src, dst, opts)
 	return f.f.Alloc(ctx, opts)
 }
 
