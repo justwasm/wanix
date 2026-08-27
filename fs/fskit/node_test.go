@@ -126,6 +126,44 @@ func TestNodeFileWrite(t *testing.T) {
 	}
 }
 
+func TestNodeFileWriteThrough(t *testing.T) {
+	n := Entry("test.txt", 0644, []byte{})
+
+	f, err := n.Open(".")
+	if err != nil {
+		t.Fatalf("failed to open: %v", err)
+	}
+
+	wf, ok := f.(interface{ Write([]byte) (int, error) })
+	if !ok {
+		t.Fatal("file does not implement Write")
+	}
+
+	// Bytes must be visible in the node while the file is still open,
+	// so streaming readers (page-side capture) see live output without
+	// waiting for Close.
+	if _, err := wf.Write([]byte("first")); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
+	if got := string(n.Data()); got != "first" {
+		t.Errorf("node data before close: expected %q, got %q", "first", got)
+	}
+
+	if _, err := wf.Write([]byte("-second")); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
+	if got := string(n.Data()); got != "first-second" {
+		t.Errorf("node data before close: expected %q, got %q", "first-second", got)
+	}
+
+	if err := f.Close(); err != nil {
+		t.Fatalf("failed to close: %v", err)
+	}
+	if got := string(n.Data()); got != "first-second" {
+		t.Errorf("node data after close: expected %q, got %q", "first-second", got)
+	}
+}
+
 func TestNodeFileSeek(t *testing.T) {
 	n := Entry("test.txt", 0644, []byte("hello world"))
 

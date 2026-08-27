@@ -35,6 +35,9 @@ export class TaskElement extends WanixElement {
     }
 
     async _awake() {
+        if (this.rid) {
+            return;
+        }
         await this.allocate();
         if (this._autostart) {
             await this.start();

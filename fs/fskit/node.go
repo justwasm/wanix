@@ -475,6 +475,13 @@ func (f *nodeFile) Write(b []byte) (n int, err error) {
 	f.modTime = time.Now()
 	f.dirty = true
 	f.offset += int64(n)
+	// Write-through: commit the buffer to the node immediately so other
+	// handles and namespace readers observe the bytes while the file is
+	// still open, instead of only when Close runs. Close re-commits the
+	// same slice, which is now a no-op for the data. modTime is still
+	// applied on Close, matching TestNodeModTimeTracking. Lock order is
+	// f.mu -> inode.mu, matching Close.
+	SetData(f.inode, f.data)
 	return n, nil
 }
 
