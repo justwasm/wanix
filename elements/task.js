@@ -79,12 +79,24 @@ export class TaskElement extends WanixElement {
             await this.taskRoot.bind(program, [this.path, "fd/1"].join("/"));
             await this.taskRoot.bind(program, [this.path, "fd/2"].join("/"));
         } else {
-            // torn on if this is the right default, but importantly it makes
-            // it easier to redirect output because bind to #web/console works better
-            // than bind to #task/<id>/fd/1 for whatever reason right now
+            // Headless tasks get the console by default; explicit stdout /
+            // stderr attributes redirect those fds to files (e.g. a log
+            // path provisioned by the caller) so output survives the task.
+            // The target file is ensured right here, inside allocate, so no
+            // output can be produced before the bind is in place.
             await this.taskRoot.bind("#web/console", [this.path, "fd/0"].join("/"));
-            await this.taskRoot.bind("#web/console", [this.path, "fd/1"].join("/"));
-            await this.taskRoot.bind("#web/console", [this.path, "fd/2"].join("/"));
+            for (const [fd, target] of [["1", this.stdout], ["2", this.stderr]]) {
+                if (target && target !== "#web/console") {
+                    try {
+                        await this._ensureFile(target);
+                        await this.taskRoot.bind(target, [this.path, "fd/" + fd].join("/"));
+                        continue;
+                    } catch (err) {
+                        console.error("task: cannot bind " + target + " to fd/" + fd + ", falling back to console", err);
+                    }
+                }
+                await this.taskRoot.bind("#web/console", [this.path, "fd/" + fd].join("/"));
+            }
         }
 
         if (!bindElements) {
@@ -96,6 +108,21 @@ export class TaskElement extends WanixElement {
 
     async start() {
         await this._kernel.root.writeFile([this._taskpath, this.rid, "ctl"].join("/"), "start");
+    }
+
+    // Make sure a bind target file exists (created empty if missing),
+    // creating parent directories as needed. Used for stdout/stderr
+    // redirection so a missing log file cannot fail the fd bind.
+    async _ensureFile(path) {
+        const slash = path.lastIndexOf("/");
+        if (slash > 0) {
+            await this.taskRoot.makeDirAll(path.slice(0, slash));
+        }
+        try {
+            await this.taskRoot.stat(path);
+        } catch {
+            await this.taskRoot.writeFile(path, "");
+        }
     }
 
     _terminalDimensions() {
