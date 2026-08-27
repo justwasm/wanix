@@ -135,10 +135,12 @@ func (f *funcFile) invokeLine(line []byte) invokeOutcome {
 		s := strings.TrimSpace(string(line))
 		arr, err := jsonParseArray(s)
 		if err != nil {
+			f.setLastError("jsfs: json args: " + err.Error())
 			return invokeOutcome{err: syscall.EINVAL}
 		}
 		args, err := jsonArrayToArgs(arr)
 		if err != nil {
+			f.setLastError("jsfs: json args: " + err.Error())
 			return invokeOutcome{err: syscall.EINVAL}
 		}
 		res, err := reflectApply(f.fn, f.this, args)
@@ -158,6 +160,7 @@ func (f *funcFile) invokeLine(line []byte) invokeOutcome {
 	s := string(line)
 	toks, err := shlex.Split(s, true)
 	if err != nil {
+		f.setLastError("jsfs: parse args: " + err.Error())
 		return invokeOutcome{err: syscall.EINVAL}
 	}
 	args := make([]js.Value, 0, len(toks))
@@ -165,6 +168,7 @@ func (f *funcFile) invokeLine(line []byte) invokeOutcome {
 		if strings.HasPrefix(t, "@") {
 			rv, err := resolveGlobalPath(strings.TrimSpace(t))
 			if err != nil {
+				f.setLastError("jsfs: unresolved ref " + t + ": " + err.Error())
 				return invokeOutcome{err: syscall.EINVAL}
 			}
 			args = append(args, rv)
@@ -180,6 +184,13 @@ func (f *funcFile) invokeLine(line []byte) invokeOutcome {
 		return invokeOutcome{}
 	}
 	return invokeOutcome{data: jsToStringLine(res)}
+}
+
+// setLastError records a human-readable failure on the function value so that
+// write-only callers (shells that never read back) can observe parse or ref
+// errors via the existing lastError mechanism instead of a silent EINVAL.
+func (f *funcFile) setLastError(msg string) {
+	_ = reflectSet(f.fn, "lastError", js.ValueOf(msg))
 }
 
 func (f *funcFile) Close() error {
