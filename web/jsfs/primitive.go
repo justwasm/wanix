@@ -14,14 +14,15 @@ import (
 )
 
 type primitiveFile struct {
-	name      string
-	live      func() js.Value
-	parent    js.Value
-	key       string
-	hasParent bool
-	writeBuf  []byte
-	readOff   int64
-	readBuf   []byte // materialized from last read cycle
+	name       string
+	live       func() js.Value
+	parent     js.Value
+	key        string
+	hasParent  bool
+	appendMode bool
+	writeBuf   []byte
+	readOff    int64
+	readBuf    []byte // materialized from last read cycle
 }
 
 func newPrimitiveFile(name string, live func() js.Value, parent js.Value, key string, hasParent bool) *primitiveFile {
@@ -75,8 +76,16 @@ func (p *primitiveFile) Close() error {
 	if !utf8.ValidString(s) {
 		return &fs.PathError{Op: "write", Path: p.name, Err: fs.ErrInvalid}
 	}
-	trimmed := trimEndGo(s)
 	existing := p.live()
+	if p.appendMode {
+		if existing.Type() != js.TypeString {
+			// Append is only defined for string primitives; the live value may
+			// have changed type since open, so refuse rather than corrupt it.
+			return &fs.PathError{Op: "write", Path: p.name, Err: fs.ErrInvalid}
+		}
+		s = jsValueString(existing) + s
+	}
+	trimmed := trimEndGo(s)
 	nv, err := coercePrimitive(existing, trimmed)
 	if err != nil {
 		return &fs.PathError{Op: "write", Path: p.name, Err: err}
