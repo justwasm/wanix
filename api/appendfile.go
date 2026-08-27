@@ -16,9 +16,10 @@ func (s *syscaller) appendFile(r rpc.Responder, c *rpc.Call) {
 		panic("arg 0 is not a string")
 	}
 
-	data, ok := args[1].([]byte)
+	data, ok := bytesArg(args[1])
 	if !ok {
-		panic("arg 0 is not a []byte")
+		r.Return(fs.ErrInvalid)
+		return
 	}
 
 	err := fs.AppendFile(s.task.NS(), name, data)

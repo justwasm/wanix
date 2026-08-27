@@ -42,7 +42,15 @@ func (f *FS) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) 
 	}
 
 	if strings.Contains(name, ":") {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+		// Synthetic suffix views (:json/:type/:obj/:ref) select a view of an
+		// EXISTING node, exactly like Open does; they are never create
+		// targets. Route them through Open so `exec 3<>/js/.../fn:json`
+		// (write-open of a function file) returns the funcFile and writing to
+		// it invokes the JS function. O_TRUNC has no meaning on a suffix view.
+		if flag&os.O_CREATE != 0 && flag&os.O_EXCL != 0 {
+			return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrExist}
+		}
+		return f.Open(name)
 	}
 	if name == "." || !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: syscall.EISDIR}
