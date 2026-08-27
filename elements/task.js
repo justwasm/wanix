@@ -111,17 +111,28 @@ export class TaskElement extends WanixElement {
     }
 
     // Make sure a bind target file exists (created empty if missing),
-    // creating parent directories as needed. Used for stdout/stderr
-    // redirection so a missing log file cannot fail the fd bind.
+    // creating parent directories one level at a time (recursive MkdirAll
+    // is not supported on all mounts, e.g. the OPFS fsa layer). Used for
+    // stdout/stderr redirection so a missing log file cannot fail the bind.
     async _ensureFile(path) {
-        const slash = path.lastIndexOf("/");
+        const norm = path.startsWith("/") ? path.slice(1) : path;
+        const slash = norm.lastIndexOf("/");
         if (slash > 0) {
-            await this.taskRoot.makeDirAll(path.slice(0, slash));
+            let cur = "";
+            for (const part of norm.slice(0, slash).split("/")) {
+                if (!part) continue;
+                cur = cur ? `${cur}/${part}` : part;
+                try {
+                    await this.taskRoot.makeDir(cur);
+                } catch {
+                    // dir already exists; keep walking
+                }
+            }
         }
         try {
-            await this.taskRoot.stat(path);
+            await this.taskRoot.stat(norm);
         } catch {
-            await this.taskRoot.writeFile(path, "");
+            await this.taskRoot.writeFile(norm, "");
         }
     }
 
