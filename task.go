@@ -462,11 +462,19 @@ func (r *Task) resolveShebang() bool {
 	if len(fields) == 0 {
 		return false
 	}
+	// The interpreter runs as its own task and resolves the script path
+	// against ITS namespace/cwd, while the original exec may have happened
+	// elsewhere. Pass the script path in absolute namespace form so the
+	// interpreter opens the same file regardless of its cwd.
+	scriptPath := program
+	if !strings.HasPrefix(scriptPath, "/") {
+		scriptPath = "/" + scriptPath
+	}
 	args := []string{r.LookPath(fields[0])}
 	if len(fields) > 1 {
 		args = append(args, fields[1])
 	}
-	args = append(args, program)
+	args = append(args, scriptPath)
 	args = append(args, r.Args()[1:]...)
 	r.SetArgs(args)
 	return true

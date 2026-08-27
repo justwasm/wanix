@@ -87,3 +87,37 @@ func TestTaskResolveShebang(t *testing.T) {
 		}
 	})
 }
+
+func TestTaskResolveShebangRelativeScriptPath(t *testing.T) {
+	d := NewTaskFS()
+	task, err := d.Alloc("auto", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := fskit.MapFS{
+		"bin": fskit.MapFS{
+			"bash": fskit.RawNode([]byte("wasm-bash")),
+		},
+		"opfs": fskit.MapFS{
+			"home": fskit.MapFS{
+				"gm": fskit.RawNode([]byte("#!/bin/bash\necho gm\n")),
+			},
+		},
+	}
+	if err := task.NS().Bind(m, ".", "."); err != nil {
+		t.Fatal(err)
+	}
+	task.env = []string{"PATH=/bin"}
+
+	// Spawn strips the leading slash from the exec path, so the kernel sees
+	// "opfs/home/gm". The interpreter must receive the ABSOLUTE form, or it
+	// resolves the relative path against its own cwd and fails.
+	task.SetArgs([]string{"opfs/home/gm", "arg1"})
+	if !task.resolveShebang() {
+		t.Fatal("root-relative script should resolve")
+	}
+	want := []string{"/bin/bash", "/opfs/home/gm", "arg1"}
+	if got := task.Args(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %v, want %v", got, want)
+	}
+}
