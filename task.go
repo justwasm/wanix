@@ -1,6 +1,7 @@
 package wanix
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -426,6 +427,51 @@ func (r *Task) SetArg0(name string) {
 	}
 }
 
+// SetArgs replaces the full argument vector. Shebang resolution uses it to
+// rewrite a `#!` script invocation into its interpreter invocation.
+func (r *Task) SetArgs(args []string) {
+	r.args = args
+}
+
+// resolveShebang rewrites a task whose program file starts with `#!` into
+// the interpreter invocation, mirroring execve(2): the interpreter becomes
+// argv[0] (followed by at most one interpreter argument), the script path
+// becomes the next argument, and the original arguments follow. Returns
+// true when the argument vector was rewritten. The interpreter is resolved
+// through LookPath so `#!/usr/bin/env` style shebangs work unchanged.
+func (r *Task) resolveShebang() bool {
+	program := r.LookPath(r.Arg(0))
+	f, err := r.NS().Open(program)
+	if err != nil {
+		return false
+	}
+	buf := make([]byte, 512)
+	n, _ := f.Read(buf)
+	f.Close()
+	if n < 3 || buf[0] != '#' || buf[1] != '!' {
+		return false
+	}
+	// Only the first line is the shebang; execve ignores the rest.
+	var line []byte
+	if i := bytes.IndexByte(buf[2:n], '\n'); i >= 0 {
+		line = buf[2 : 2+i]
+	} else {
+		line = buf[2:n]
+	}
+	fields := strings.Fields(strings.TrimSpace(string(line)))
+	if len(fields) == 0 {
+		return false
+	}
+	args := []string{r.LookPath(fields[0])}
+	if len(fields) > 1 {
+		args = append(args, fields[1])
+	}
+	args = append(args, program)
+	args = append(args, r.Args()[1:]...)
+	r.SetArgs(args)
+	return true
+}
+
 // pathDirs returns the directories searched by LookPath, from the task's
 // PATH environment, defaulting to the conventional dirs when unset.
 func (r *Task) pathDirs() []string {
@@ -506,10 +552,18 @@ func NewTaskFS() *TaskFS {
 	d.Register("auto", autoDriver(func(t *Task) error {
 		d.mu.Lock()
 		defer d.mu.Unlock()
-		for kind, driver := range d.types {
-			if driver.Check(t) {
-				t.kind = kind
-				return driver.Start(t)
+		// A `#!` script has no binary driver, so resolve its interpreter
+		// before dispatching, mirroring execve(2). The loop is bounded so
+		// nested shebangs cannot spin forever.
+		for i := 0; i < 4; i++ {
+			for kind, driver := range d.types {
+				if driver.Check(t) {
+					t.kind = kind
+					return driver.Start(t)
+				}
+			}
+			if !t.resolveShebang() {
+				break
 			}
 		}
 		return nil
