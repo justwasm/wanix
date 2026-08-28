@@ -558,17 +558,26 @@ func NewTaskFS() *TaskFS {
 	}
 	// empty namespace process
 	d.Register("auto", autoDriver(func(t *Task) error {
-		d.mu.Lock()
-		defer d.mu.Unlock()
 		// A `#!` script has no binary driver, so resolve its interpreter
 		// before dispatching, mirroring execve(2). The loop is bounded so
-		// nested shebangs cannot spin forever.
+		// nested shebangs cannot spin forever. The driver is picked under
+		// the registry lock, but Start runs WITHOUT it: a gojs Start waits
+		// on a WebAssembly.compile promise that needs the JS event loop,
+		// and holding fsys.mu here would deadlock any concurrent
+		// Task.Tasks() (e.g. the terminal element's _updateTerminals).
 		for i := 0; i < 4; i++ {
-			for kind, driver := range d.types {
-				if driver.Check(t) {
+			var driver TaskDriver
+			d.mu.Lock()
+			for kind, cand := range d.types {
+				if cand.Check(t) {
+					driver = cand
 					t.kind = kind
-					return driver.Start(t)
+					break
 				}
+			}
+			d.mu.Unlock()
+			if driver != nil {
+				return driver.Start(t)
 			}
 			if !t.resolveShebang() {
 				break
