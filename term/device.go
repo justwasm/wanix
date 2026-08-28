@@ -98,10 +98,12 @@ func (d *Device) Alloc(initData ...[]byte) (rid string, err error) {
 		hub.Broadcast(initData[0], signal.NoExclude)
 	}
 	_, dataPF, progPF := pipe.NewFS(true)
-	// remove := func() {
-	// 	d.remove(rid)
-	// }
-	progWrap := &programFile{PortFile: progPF}
+	progWrap := &programFile{
+		PortFile: progPF,
+		remove: func() {
+			d.remove(rid)
+		},
+	}
 	root := fskit.MapFS{
 		"id":      fskit.RawNode([]byte(rid+"\n"), 0555),
 		"data":    fskit.FileFS(dataPF, "data"),
@@ -118,13 +120,15 @@ func (d *Device) Alloc(initData ...[]byte) (rid string, err error) {
 }
 
 func (d *Device) remove(rid string) {
+	// Take the resource directly instead of via Get(): Get takes RLock,
+	// which would deadlock against the Lock() held here.
 	d.mu.Lock()
-	res, err := d.Get(rid)
-	if err != nil {
+	res, ok := d.resources[rid]
+	if !ok {
 		d.mu.Unlock()
 		return
 	}
 	delete(d.resources, rid)
 	d.mu.Unlock()
-	res.shutdown()
+	res.(*Resource).shutdown()
 }

@@ -1,6 +1,10 @@
 package term
 
 import (
+	"errors"
+	"io"
+	"sync"
+
 	"tractor.dev/wanix/fs/fskit"
 	"tractor.dev/wanix/fs/pipe"
 	"tractor.dev/wanix/fs/signal"
@@ -28,7 +32,20 @@ func (r *Resource) shutdown() {
 
 type programFile struct {
 	*pipe.PortFile
-	prev byte // last input byte seen, for cross-call lookbehind
+	prev   byte // last input byte seen, for cross-call lookbehind
+	remove func()
+	once   sync.Once
+}
+
+// Read forwards to the underlying port and, on EOF, removes the term
+// resource. EOF here means the program side (the process's stdio) is
+// closed, so the terminal session is dead and its resource must not leak.
+func (c *programFile) Read(p []byte) (int, error) {
+	n, err := c.PortFile.Read(p)
+	if errors.Is(err, io.EOF) && c.remove != nil {
+		c.once.Do(c.remove)
+	}
+	return n, err
 }
 
 func (c *programFile) Write(p []byte) (int, error) {
