@@ -63,12 +63,29 @@ func isNullish(v js.Value) bool {
 	return v.IsNull() || v.IsUndefined()
 }
 
+// safeType classifies v without panicking. syscall/js.Type() aborts the wasm
+// kernel ("bad type flag") on id-backed refs that carry no type flag — null
+// and BigInt read through property access, and exotic objects like
+// document.all whose typeof is "undefined" while not being undefined. Every
+// classification of a value that originates from JS property access must go
+// through here; ok=false means the value cannot be classified.
+func safeType(v js.Value) (t js.Type, ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	return v.Type(), true
+}
+
 func isCallable(v js.Value) bool {
-	return v.Type() == js.TypeFunction
+	t, ok := safeType(v)
+	return ok && t == js.TypeFunction
 }
 
 func arrayIsArray(v js.Value) bool {
-	if v.Type() != js.TypeObject {
+	t, ok := safeType(v)
+	if !ok || t != js.TypeObject {
 		return false
 	}
 	fn := js.Global().Get("Array").Get("isArray")
@@ -77,14 +94,20 @@ func arrayIsArray(v js.Value) bool {
 
 // isDirectoryNode reports whether value should be listed as a directory in the
 // default (non–:obj) view.
+//
+// It must never panic: property values can be arbitrary JS values (null and
+// BigInt cross the syscall/js boundary as id-backed refs with no type flag,
+// exotic objects like document.all report a bogus typeof, getters can return
+// anything), and js.Value.Type() aborts the whole wasm kernel with "bad type
+// flag" on those. A panic here would take down every task in the kernel, so
+// entry listing degrades gracefully: unclassifiable values are files, not
+// directories.
 func isDirectoryNode(v js.Value) bool {
 	if isNullish(v) {
 		return false
 	}
-	if v.Type() == js.TypeFunction {
-		return false
-	}
-	return v.Type() == js.TypeObject
+	t, ok := safeType(v)
+	return ok && t == js.TypeObject
 }
 
 func entryModeFor(child js.Value) fs.FileMode {
@@ -181,7 +204,8 @@ func reflectSet(target js.Value, prop string, val js.Value) (err error) {
 
 // isBoxedPrimitiveObject distinguishes new String(...) etc. from plain objects.
 func isBoxedPrimitiveObject(v js.Value) bool {
-	if v.Type() != js.TypeObject || v.IsNull() {
+	t, ok := safeType(v)
+	if !ok || t != js.TypeObject || v.IsNull() {
 		return false
 	}
 	return func() (ok bool) {

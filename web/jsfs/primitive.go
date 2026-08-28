@@ -78,7 +78,8 @@ func (p *primitiveFile) Close() error {
 	}
 	existing := p.live()
 	if p.appendMode {
-		if existing.Type() != js.TypeString {
+		t, ok := safeType(existing)
+		if !ok || t != js.TypeString {
 			// Append is only defined for string primitives; the live value may
 			// have changed type since open, so refuse rather than corrupt it.
 			return &fs.PathError{Op: "write", Path: p.name, Err: fs.ErrInvalid}

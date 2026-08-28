@@ -20,8 +20,8 @@ func canHaveProperties(v js.Value) bool {
 	if isNullish(v) {
 		return false
 	}
-	t := v.Type()
-	return t == js.TypeObject || t == js.TypeFunction
+	t, ok := safeType(v)
+	return ok && (t == js.TypeObject || t == js.TypeFunction)
 }
 
 func walkPath(root js.Value, parts []string) (r resolved, err error) {

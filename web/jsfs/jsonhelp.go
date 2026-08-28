@@ -45,7 +45,8 @@ func jsonArrayToArgs(arr js.Value) ([]js.Value, error) {
 }
 
 func atRefPathFromObject(v js.Value) (string, bool) {
-	if v.Type() != js.TypeObject || v.IsNull() {
+	t, ok := safeType(v)
+	if !ok || t != js.TypeObject || v.IsNull() {
 		return "", false
 	}
 	keys := js.Global().Get("Object").Call("keys", v)

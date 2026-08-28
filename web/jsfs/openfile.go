@@ -117,7 +117,8 @@ func (f *FS) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) 
 		if pf, ok := fl.(*primitiveFile); ok {
 			// primitiveFile has no byte offset semantics; append is recorded on
 			// the handle and merged in Close (string values only).
-			if v := pf.live(); v.Type() != js.TypeString {
+			t, ok := safeType(pf.live())
+			if !ok || t != js.TypeString {
 				_ = fl.Close()
 				return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 			}

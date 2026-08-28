@@ -26,7 +26,13 @@ func parseBoolString(s string) (bool, bool) {
 }
 
 func coercePrimitive(existing js.Value, trimmed string) (js.Value, error) {
-	switch existing.Type() {
+	t, ok := safeType(existing)
+	if !ok {
+		// Unclassifiable existing value (id-backed null, BigInt, exotic):
+		// fall through to the raw-typed assignment below.
+		return js.ValueOf(trimmed), nil
+	}
+	switch t {
 	case js.TypeString:
 		return js.ValueOf(trimmed), nil
 	case js.TypeNumber:
