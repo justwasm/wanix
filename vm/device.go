@@ -88,7 +88,16 @@ func (d *Device) union() fskit.UnionFS {
 }
 
 // Route implements fs.RouteFS; see union.
+//
+// Root names stay at the device itself so fs.Walk stops here: callers
+// resolving "#vm" (e.g. the worker guest mount) get back the *vm.Device
+// and can Lookup a resource by id, instead of a freshly-built union that
+// has no link back to the device. Non-root names descend into the union
+// so typed operations reach the VM resource's inner namespace.
 func (d *Device) Route(ctx context.Context, name string) (fs.FS, string, error) {
+	if name == "" || name == "." {
+		return d, name, nil
+	}
 	return d.union(), name, nil
 }
 
