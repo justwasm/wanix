@@ -5,7 +5,6 @@ package worker
 import (
 	"context"
 	"log"
-	"path"
 	"strconv"
 	"strings"
 	"syscall/js"
@@ -114,12 +113,19 @@ func (r *Resource) Start(args ...string) error {
 						return
 					}
 					vmID := args[0].Get("data").Get("vm").String()
-					rfsys, _, err := fs.Resolve(r.task.Root().NS(), context.Background(), path.Join("#vm", vmID))
+					// Resolve the device namespace itself (not #vm/<id>, which
+					// now descends into the VM's own namespace and yields the
+					// inner fs), then look the instance up by id.
+					rfsys, _, err := fs.Resolve(r.task.Root().NS(), context.Background(), "#vm")
 					if err != nil {
-						log.Println("error resolving vm", vmID, err)
+						log.Println("error resolving vm device", err)
 						return
 					}
-					vms := rfsys.(*vm.Device)
+					vms, ok := rfsys.(*vm.Device)
+					if !ok {
+						log.Println("error resolving vm device: not a vm.Device")
+						return
+					}
 					vm, err := vms.Lookup(vmID)
 					if err != nil {
 						log.Println("error looking up vm", vmID, err)

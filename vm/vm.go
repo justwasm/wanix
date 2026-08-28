@@ -60,8 +60,35 @@ func (r *VM) Open(name string) (fs.File, error) {
 	return r.OpenContext(context.Background(), name)
 }
 
-func (r *VM) OpenContext(ctx context.Context, name string) (fs.File, error) {
-	base := fskit.MapFS{
+// root returns the VM's own namespace (the control/id/alias field files
+// bound at "."), created lazily like OpenContext does. Route hands Walk
+// this namespace so typed operations on #vm/<id>/<file> (chmod,
+// writeFile, ...) resolve to the target node instead of failing at the
+// VM resource itself.
+func (r *VM) root() (*vfs.NS, error) {
+	base := r.baseFS()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.vfs == nil {
+		r.vfs = vfs.New(context.Background())
+		if err := r.vfs.Bind(base, ".", "."); err != nil {
+			return nil, err
+		}
+	}
+	return r.vfs, nil
+}
+
+// Route implements fs.RouteFS; see root.
+func (r *VM) Route(ctx context.Context, name string) (fs.FS, string, error) {
+	vfsys, err := r.root()
+	if err != nil {
+		return nil, "", err
+	}
+	return vfsys, name, nil
+}
+
+func (r *VM) baseFS() fskit.MapFS {
+	return fskit.MapFS{
 		"ctl": misc.ControlFile(&cli.Command{
 			Usage: "ctl",
 			Short: "control the resource",
@@ -107,21 +134,18 @@ func (r *VM) OpenContext(ctx context.Context, name string) (fs.File, error) {
 			return nil
 		}),
 	}
+}
 
-	r.mu.Lock()
-	if r.vfs == nil {
-		r.vfs = vfs.New(context.Background())
-		if err := r.vfs.Bind(base, ".", "."); err != nil {
-			return nil, err
-		}
+func (r *VM) OpenContext(ctx context.Context, name string) (fs.File, error) {
+	vfsys, err := r.root()
+	if err != nil {
+		return nil, err
 	}
-	r.mu.Unlock()
-
 	// if r.serial != nil {
 	// 	fsys["ttyS0"] = fskit.FileFS(serialFile, "ttyS0")
 	// }
 	// if r.shmpipe != nil {
 	// 	fsys["shmpipe0"] = fskit.FileFS(shmpipeFile, "shmpipe0")
 	// }
-	return fs.OpenContext(ctx, r.vfs, name)
+	return fs.OpenContext(ctx, vfsys, name)
 }

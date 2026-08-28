@@ -560,22 +560,35 @@ func NewTaskFS() *TaskFS {
 	d.Register("auto", autoDriver(func(t *Task) error {
 		// A `#!` script has no binary driver, so resolve its interpreter
 		// before dispatching, mirroring execve(2). The loop is bounded so
-		// nested shebangs cannot spin forever. The driver is picked under
-		// the registry lock, but Start runs WITHOUT it: a gojs Start waits
-		// on a WebAssembly.compile promise that needs the JS event loop,
-		// and holding fsys.mu here would deadlock any concurrent
-		// Task.Tasks() (e.g. the terminal element's _updateTerminals).
+		// nested shebangs cannot spin forever. The registry is snapshotted
+		// under the lock, but Check runs WITHOUT it: a Check can block on a
+		// JS promise (a wasi gojs worker spawn, or an IndexedDB/OPFS stat
+		// while resolving a PATH entry), and holding fsys.mu for the whole
+		// check would freeze every concurrent task start until the promise
+		// settles — or, if it never settles, drag the whole kernel into
+		// "fatal error: all goroutines are asleep". Start also runs without
+		// the lock: a gojs Start waits on a WebAssembly.compile promise
+		// that needs the JS event loop, and holding fsys.mu here would
+		// deadlock any concurrent Task.Tasks() (e.g. the terminal element's
+		// _updateTerminals).
 		for i := 0; i < 4; i++ {
-			var driver TaskDriver
 			d.mu.Lock()
+			drivers := make([]TaskDriver, 0, len(d.types))
+			kinds := make([]string, 0, len(d.types))
 			for kind, cand := range d.types {
+				kinds = append(kinds, kind)
+				drivers = append(drivers, cand)
+			}
+			d.mu.Unlock()
+
+			var driver TaskDriver
+			for idx, cand := range drivers {
 				if cand.Check(t) {
 					driver = cand
-					t.kind = kind
+					t.kind = kinds[idx]
 					break
 				}
 			}
-			d.mu.Unlock()
 			if driver != nil {
 				return driver.Start(t)
 			}

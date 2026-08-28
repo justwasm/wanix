@@ -77,8 +77,23 @@ func (d *Device) Open(name string) (fs.File, error) {
 	return d.OpenContext(context.Background(), name)
 }
 
-func (d *Device) OpenContext(ctx context.Context, name string) (fs.File, error) {
-	fsys := fskit.MapFS{
+// union returns the device's combined view: the "new" allocator plus live
+// resources and aliases. OpenContext routes through it; Route hands Walk
+// the same tree so ResolveTo-based operations (chmod, writeFile, mkdir,
+// ...) can descend past the device into a VM resource or alias file
+// instead of failing with "resolve: operation not supported on
+// *vm.Device".
+func (d *Device) union() fskit.UnionFS {
+	return fskit.UnionFS{d.newFS(), fskit.MapFS(d.resources), fskit.MapFS(d.aliases)}
+}
+
+// Route implements fs.RouteFS; see union.
+func (d *Device) Route(ctx context.Context, name string) (fs.FS, string, error) {
+	return d.union(), name, nil
+}
+
+func (d *Device) newFS() fskit.MapFS {
+	return fskit.MapFS{
 		"new": fskit.OpenFunc(func(ctx context.Context, name string) (fs.File, error) {
 			if name == "." {
 				var nodes []fs.DirEntry
@@ -100,5 +115,8 @@ func (d *Device) OpenContext(ctx context.Context, name string) (fs.File, error) 
 			}, nil
 		}),
 	}
-	return fs.OpenContext(ctx, fskit.UnionFS{fsys, fskit.MapFS(d.resources), fskit.MapFS(d.aliases)}, name)
+}
+
+func (d *Device) OpenContext(ctx context.Context, name string) (fs.File, error) {
+	return fs.OpenContext(ctx, d.union(), name)
 }

@@ -113,14 +113,57 @@ export class IDBFS {
     async _initDB() {
         if (this.db) return this.db;
 
-        await new Promise((resolve, reject) => {
+        // A blocked open must never hang the kernel: the Go side awaits
+        // this promise (jsutil.AwaitErr) with no escape hatch, and if it
+        // never settles every goroutine that touches this fs parks forever
+        // ("fatal error: all goroutines are asleep"). indexedDB.open can
+        // stall when another connection holds the DB at a lower version
+        // (onblocked, e.g. a stale connection from a previous page load or
+        // a second tab) or when the v1→v2 migration is slow, so bound the
+        // whole attempt with a timeout and retry briefly.
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const db = await this._openDB();
+            if (db !== undefined) {
+                this.db = db;
+                // Ensure root directory exists
+                await this._ensureRoot();
+                return this.db;
+            }
+            // onblocked / timeout: the blocker usually clears within a
+            // moment; wait and retry before giving up.
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        throw new IDBFSError('Failed to open database after retries', 'EIO');
+    }
+
+    _openDB() {
+        return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, 2);
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                resolve(undefined); // treat as "retry"
+            }, 3000);
 
-            request.onerror = () => reject(new IDBFSError('Failed to open database', 'EIO'));
+            const done = (err) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (err) reject(err);
+                else resolve(request.result);
+            };
 
+            request.onerror = () => done(new IDBFSError('Failed to open database', 'EIO'));
+            request.onblocked = () => {
+                // Another connection holds the DB at a lower version. The
+                // request is not dead — it will proceed once the blocker
+                // closes — but it can stall forever, so fall through to the
+                // timeout above and retry.
+            };
             request.onsuccess = () => {
                 this.db = request.result;
-                resolve(this.db);
+                done();
             };
 
             request.onupgradeneeded = (event) => {
@@ -197,11 +240,6 @@ export class IDBFS {
                 }
             };
         });
-
-        // Ensure root directory exists
-        await this._ensureRoot();
-        
-        return this.db;
     }
 
     async _ensureRoot() {
