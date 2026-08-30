@@ -9,6 +9,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall/js"
 
@@ -230,9 +232,12 @@ func main() {
 
 	vm.Call("add_listener", "emulator-ready", js.FuncOf(func(this js.Value, args []js.Value) any {
 
+		// Default console size until the shell publishes a winch frame
+		// (the panel's wanix-term fits on open and on every resize).
 		vm.Get("bus").Call("send", "virtio-console0-resize", []any{
 			100, 100,
 		})
+		go forwardWinch(vm)
 
 		tmpScreen := js.Global().Get("OffscreenCanvas").New(800, 600)
 		screenAdapter := jsmod.Get("OffscreenScreenAdapter").New(tmpScreen, js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -253,4 +258,46 @@ func main() {
 	}))
 
 	select {}
+}
+
+// forwardWinch mirrors the term device's winch signal into the emulator:
+// the shell's wanix-term publishes "cols rows xpixel ypixel" frames on
+// fit/resize, so the guest console (stty size) tracks the real panel
+// size instead of the hardcoded 100x100 boot default. The signal file
+// replays the last frame to a new reader, so the first read already
+// carries the current size when one has been published.
+func forwardWinch(vm js.Value) {
+	// The VM task's namespace exposes its term at #task/self/term (the
+	// wanix-vm element binds it there); the winch signal file sits under
+	// it. Terminal tasks bind a bare "winch" at the root, VM tasks do
+	// not, so open the full path.
+	winch, err := os.Open("#task/self/term/winch")
+	if err != nil {
+		log.Println("winch open:", err)
+		return
+	}
+	defer winch.Close()
+	buf := make([]byte, 64)
+	for {
+		n, err := winch.Read(buf)
+		if n > 0 {
+			fields := strings.Fields(string(buf[:n]))
+			if len(fields) >= 2 {
+				cols, cerr := strconv.Atoi(fields[0])
+				rows, rerr := strconv.Atoi(fields[1])
+				if cerr == nil && rerr == nil && cols > 0 && rows > 0 {
+					// v86's virtio console resize handler writes the two
+					// size words in the order (second arg, first arg) into
+					// the VIRTIO_CONSOLE_RESIZE message, and the Linux
+					// guest reads the first word as cols — so the args must
+					// be swapped here for the guest to see cols/rows right
+					// (the symmetric 100x100 boot default masked this).
+					vm.Get("bus").Call("send", "virtio-console0-resize", []any{rows, cols})
+				}
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
 }
