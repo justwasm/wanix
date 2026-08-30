@@ -510,11 +510,17 @@ func (r *Task) VFSOpen(fd int) (fs.File, string, error) {
 	return file, name, nil
 }
 
+// nullFile is a /dev/null equivalent: reads return EOF, writes discard,
+// and stat reports a regular file so namespace resolution can stat an
+// unbound standard descriptor without dereferencing a nil embedded FS.
 type nullFile struct{ fs.File }
 
 func (f *nullFile) Read([]byte) (int, error)       { return 0, io.EOF }
 func (f *nullFile) Write(data []byte) (int, error) { return len(data), nil }
 func (f *nullFile) Close() error                   { return nil }
+func (f *nullFile) Stat() (fs.FileInfo, error) {
+	return fskit.Entry("/dev/null", 0644, 0), nil
+}
 
 func (f *fdFS) Open(name string) (fs.File, error) {
 	if name == "." {

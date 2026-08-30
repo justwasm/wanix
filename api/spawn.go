@@ -122,6 +122,16 @@ func (s *syscaller) spawn(r rpc.Responder, c *rpc.Call) {
 	//
 	// We register the inherited files at the correct child fd indices using
 	// SetFD(i, ...) so the child Worker's RPC write/read handlers find them.
+	//
+	// Mirror exec semantics: when the caller does not declare stdio, the
+	// child inherits the parent's fds 0/1/2. Without this default a wasi or
+	// js child worker (which resolves its stdout through #task/<id>/fd/1)
+	// fails to open the fd path and never starts.
+	if opts == nil {
+		opts = map[string]any{"stdio": []any{"inherit", "inherit", "inherit"}}
+	} else if _, ok := opts["stdio"]; !ok {
+		opts["stdio"] = []any{"inherit", "inherit", "inherit"}
+	}
 	var trackedPipes []pipeCore
 	if opts != nil {
 		if stdio, ok := opts["stdio"].([]any); ok {
