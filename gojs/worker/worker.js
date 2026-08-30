@@ -18,7 +18,12 @@ self.addEventListener("message", async (e) => {
     const args = await readTaskArgs(fs, tid);
     console.log("gojs worker started", "tid:", tid, "args:", args, "env:", env);
     globalThis.cwd = (await fs.readText(`${TASKNS}/${tid}/dir`)).trim() || "/";
-    const bin = await fs.readFile(args[0]); 
+    // The kernel passes the compiled module through the worker payload
+    // when the binary was fetch-bound (instantiateStreaming); only read
+    // the binary back over 9p when no module came through. Reading a
+    // large gojs binary (25MB bash) chunk-by-chunk over the p9 channel
+    // stalls in throttled/background tabs even when the bytes are local.
+    const bin = e.data.worker.wasmModule ? null : await fs.readFile(args[0]); 
 
     const go = new Go();
     go.argv = args || [];
