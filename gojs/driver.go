@@ -4,6 +4,7 @@ package gojs
 
 import (
 	"io"
+	"syscall/js"
 
 	"tractor.dev/wanix"
 	gojsworker "tractor.dev/wanix/gojs/worker"
@@ -30,18 +31,35 @@ func (d *Driver) Check(t *wanix.Task) bool {
 
 func (d *Driver) Start(t *wanix.Task) error {
 	program := t.LookPath(t.Arg(0))
-	f, err := t.NS().Open(program)
-	if err != nil {
-		return err
+	// Fetch-bound binaries compile straight from their source URL with
+	// WebAssembly.compileStreaming (browser-side fetch + compile, never
+	// read into kernel memory chunk-by-chunk — that stalls for large
+	// binaries like the 25MB gojs bash in throttled environments). Fall
+	// back to reading the namespace file when the path is not a fetch
+	// bind or the streaming compile fails.
+	var module js.Value
+	if src := cache.FetchBindSrc(program); src != "" {
+		var err error
+		module, err = cache.GetOrCompileStreaming(src)
+		if err != nil {
+			// fall through to the file path below
+			module = js.Undefined()
+		}
 	}
-	defer f.Close()
-	bin, err := io.ReadAll(f)
-	if err != nil {
-		return err
-	}
-	module, err := cache.GetOrCompile(program, bin)
-	if err != nil {
-		return err
+	if module.IsUndefined() {
+		f, err := t.NS().Open(program)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		bin, err := io.ReadAll(f)
+		if err != nil {
+			return err
+		}
+		module, err = cache.GetOrCompile(program, bin)
+		if err != nil {
+			return err
+		}
 	}
 	// The worker re-reads the binary from the task's args, so argv[0] must
 	// be the resolved path, not the bare name the driver was started with.

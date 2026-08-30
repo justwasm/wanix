@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"runtime/debug"
 	"net/url"
 	"path"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall/js"
@@ -35,6 +35,7 @@ import (
 	"tractor.dev/wanix/pty"
 	"tractor.dev/wanix/term"
 	"tractor.dev/wanix/vm"
+	"tractor.dev/wanix/wasm/cache"
 	"tractor.dev/wanix/web"
 	"tractor.dev/wanix/web/fsa"
 	"tractor.dev/wanix/web/idbfs"
@@ -305,12 +306,18 @@ func main() {
 						return
 					}
 				case typ == "fetch" || (typ == "file" && src != ""):
+					cache.RegisterFetchBind(dst, src)
 					v, err := jsutil.AwaitErr(binding.Get("data"))
 					if err != nil {
 						log.Println("error fetching", err)
 						return
 					}
-					buf, err := io.ReadAll(jsutil.NewReadableStream(v))
+					// One-shot read: Response(stream).arrayBuffer() resolves
+					// the WHOLE body in a single promise. Reading the stream
+					// chunk-by-chunk costs one JS round-trip per chunk and
+					// stalls for large binaries (the 25MB gojs bash) in
+					// throttled environments, leaving the bind unapplied.
+					buf, err := readResponseBody(v)
 					if err != nil {
 						log.Println("error reading fetch", err)
 						return
@@ -396,4 +403,19 @@ func main() {
 	sys.Element().Call("_wasmReady")
 
 	select {}
+}
+
+// readResponseBody materializes a fetch response body (ReadableStream)
+// into bytes with a single arrayBuffer promise. Pass the resolved
+// binding.data value (the resp.body stream).
+func readResponseBody(stream js.Value) ([]byte, error) {
+	resp := js.Global().Get("Response").New(stream)
+	ab, err := jsutil.AwaitErr(resp.Call("arrayBuffer"))
+	if err != nil {
+		return nil, err
+	}
+	uint8 := js.Global().Get("Uint8Array").New(ab)
+	data := make([]byte, uint8.Get("byteLength").Int())
+	js.CopyBytesToGo(data, uint8)
+	return data, nil
 }
