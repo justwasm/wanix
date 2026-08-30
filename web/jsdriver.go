@@ -14,7 +14,6 @@ import (
 // this was added for demos and completeness, but is really just a sketch atm.
 type JSDriver struct {
 	Workers *worker.Device
-	Root    *wanix.Task
 }
 
 func (d *JSDriver) Check(t *wanix.Task) bool {
@@ -22,7 +21,10 @@ func (d *JSDriver) Check(t *wanix.Task) bool {
 }
 
 func (d *JSDriver) Start(t *wanix.Task) error {
-	data, err := fs.ReadFile(d.Root.NS(), t.LookPath(t.Arg(0)))
+	// Read the script from the task's own namespace (like the wasi and
+	// gojs drivers): per-task plugin mounts (files binds) are visible
+	// there, while root-namespace mounts still are via the ns clone.
+	data, err := fs.ReadFile(t.NS(), t.LookPath(t.Arg(0)))
 	if err != nil {
 		return err
 	}

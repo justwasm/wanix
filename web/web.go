@@ -40,7 +40,7 @@ func New(root *wanix.Task) fskit.MapFS {
 	// 	webfs["sw"] = sw.Activate(runtime.Instance().Get("_sw"), k)
 	// }
 
-	root.Register("js", &JSDriver{Workers: workerfs, Root: root})
+	root.Register("js", &JSDriver{Workers: workerfs})
 	root.Register("wasi", &wasi.Driver{Workers: workerfs})
 	root.Register("gojs", &gojs.Driver{Workers: workerfs})
 	return webfs
