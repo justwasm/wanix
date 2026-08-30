@@ -201,3 +201,44 @@ func TestNewSeedsWinchWithInitialDimensions(t *testing.T) {
 		t.Fatalf("winch = %q", got)
 	}
 }
+
+// Regression: appendFile-style writes go through WriteAt, which the
+// embedded PortFile promoted to a raw pipe write, bypassing the \n->\r\n
+// translation in programFile.Write. Terminals then received bare LFs and
+// stacked every line at the previous line's end column.
+func TestProgramWriteAtTranslatesNewline(t *testing.T) {
+	ctx := context.Background()
+	s := New(nil)
+	newf, err := fs.OpenContext(ctx, s, "new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newf.Read(make([]byte, 8)); err != nil {
+		t.Fatal(err)
+	}
+	newf.Close()
+
+	df, err := fs.OpenContext(ctx, s, "1/data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer df.Close()
+	pf, err := fs.OpenContext(ctx, s, "1/program")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pf.Close()
+
+	msg := []byte("line one\nline two\n")
+	if _, err := fs.WriteAt(pf, msg, 0); err != nil {
+		t.Fatal(err)
+	}
+	out := make([]byte, len(msg)+2)
+	n, err := io.ReadFull(df, out)
+	if err != nil {
+		t.Fatalf("read data: %v (got %d bytes: %q)", err, n, out[:n])
+	}
+	if string(out[:n]) != "line one\r\nline two\r\n" {
+		t.Fatalf("data read %q, want %q", out[:n], "line one\r\nline two\r\n")
+	}
+}

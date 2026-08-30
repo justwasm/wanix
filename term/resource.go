@@ -67,3 +67,11 @@ func (c *programFile) Write(p []byte) (int, error) {
 	c.prev = prev
 	return len(p), nil
 }
+
+// WriteAt must translate like Write: the embedded PortFile's promoted
+// WriteAt would write straight to the pipe, so appendFile-style writes
+// (which always use WriteAt) would reach the terminal with bare LFs and
+// stack every line at the previous line's end column.
+func (c *programFile) WriteAt(p []byte, off int64) (int, error) {
+	return c.Write(p)
+}

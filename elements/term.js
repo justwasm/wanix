@@ -45,6 +45,11 @@ export class TerminalElement extends WanixElement {
         this._term = new Terminal({
             allowProposedApi: true,
             fontFamily: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`,
+            // A bare LF (no CR) moves the cursor down without returning to
+            // column 0, so streams written straight to the pty master with
+            // plain \n would stack every line at the previous line's end.
+            // convertEol makes every LF a new line at column 0.
+            convertEol: true,
             // theme: {
             //     background: "rgba(0, 0, 0, 0)",
             //     foreground: "white",
