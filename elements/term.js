@@ -2,6 +2,7 @@ import { Terminal } from "@xterm/xterm";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
+import { ProgressAddon } from "@xterm/addon-progress";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import xtermCss from "@xterm/xterm/css/xterm.css";
@@ -11,7 +12,32 @@ import { WanixElement } from "./base.js";
 if (typeof document !== "undefined" && !document.getElementById("wanix-xterm-css")) {
     const style = document.createElement("style");
     style.id = "wanix-xterm-css";
-    style.textContent = xtermCss;
+    style.textContent = `${xtermCss}
+.wanix-term-progress {
+    position: relative;
+    flex: none;
+    height: 3px;
+    background: #21262d;
+    overflow: hidden;
+}
+.wanix-term-progress[hidden] { display: none; }
+.wanix-term-progress-fill {
+    height: 100%;
+    width: 0;
+    background: #58a6ff;
+    transition: width 160ms ease-out;
+}
+.wanix-term-progress[data-state="2"] .wanix-term-progress-fill { background: #f85149; }
+.wanix-term-progress[data-state="4"] .wanix-term-progress-fill { background: #d29922; }
+.wanix-term-progress[data-state="3"] .wanix-term-progress-fill {
+    width: 32% !important;
+    background: linear-gradient(90deg, transparent, #58a6ff, transparent);
+    animation: wanix-term-progress-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes wanix-term-progress-indeterminate {
+    from { transform: translateX(-120%); }
+    to { transform: translateX(320%); }
+}`;
     document.head.appendChild(style);
 }
 
@@ -20,6 +46,10 @@ export class TerminalElement extends WanixElement {
     #reader;
     #writer;
     #dataDisposable;
+    #progressAddon;
+    #progressDisposable;
+    #progressBar;
+    #progressFill;
 
     constructor() {
         super();
@@ -31,6 +61,10 @@ export class TerminalElement extends WanixElement {
         this.#reader = null;
         this.#writer = null;
         this.#dataDisposable = null;
+        this.#progressAddon = null;
+        this.#progressDisposable = null;
+        this.#progressBar = null;
+        this.#progressFill = null;
     }
 
     connectedCallback() {
@@ -44,6 +78,7 @@ export class TerminalElement extends WanixElement {
 
         this._term = new Terminal({
             allowProposedApi: true,
+            termName: "ghostty",
             fontFamily: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`,
             // A bare LF (no CR) moves the cursor down without returning to
             // column 0, so streams written straight to the pty master with
@@ -65,6 +100,12 @@ export class TerminalElement extends WanixElement {
         this._term.loadAddon(new WebLinksAddon());
         this._fitAddon = new FitAddon();
         this._term.loadAddon(this._fitAddon);
+        this.#progressAddon = new ProgressAddon();
+        this._term.loadAddon(this.#progressAddon);
+        this.#createProgressBar();
+        this.#progressDisposable = this.#progressAddon.onChange((progress) => {
+            this.#updateProgressBar(progress);
+        });
         this._term.open(this);
 
         this.#resizeObserver = new ResizeObserver(() => {
@@ -91,11 +132,46 @@ export class TerminalElement extends WanixElement {
             this.#resizeObserver.disconnect();
             this.#resizeObserver = null;
         }
+        this.#progressDisposable?.dispose();
+        this.#progressAddon?.dispose();
+        this.#progressDisposable = null;
+        this.#progressAddon = null;
+        this.#progressBar?.remove();
+        this.#progressBar = null;
+        this.#updateProgressBar({ state: 0, value: 0 });
+        this.#progressFill = null;
         if (this._term) {
             this._term.dispose();
             this._term = null;
         }
         this._fitAddon = null;
+    }
+
+    #createProgressBar() {
+        this.#progressBar = document.createElement("div");
+        this.#progressBar.className = "wanix-term-progress";
+        this.#progressBar.hidden = true;
+        this.#progressBar.setAttribute("role", "progressbar");
+        this.#progressBar.setAttribute("aria-label", "Terminal progress");
+        this.#progressFill = document.createElement("div");
+        this.#progressFill.className = "wanix-term-progress-fill";
+        this.#progressBar.appendChild(this.#progressFill);
+        this.appendChild(this.#progressBar);
+    }
+
+    #updateProgressBar(progress) {
+        if (!this.#progressBar || !this.#progressFill) return;
+        const state = progress?.state ?? 0;
+        const value = Math.max(0, Math.min(100, Number(progress?.value) || 0));
+        this.#progressBar.hidden = state === 0;
+        this.#progressBar.dataset.state = String(state);
+        this.#progressFill.style.width = `${value}%`;
+        if (state === 3) this.#progressBar.removeAttribute("aria-valuenow");
+        else this.#progressBar.setAttribute("aria-valuenow", String(value));
+    }
+
+    #normalizeTerminalResponse(data) {
+        return data.replace("\u001bP>|xterm.js(", "\u001bP>|ghostty(");
     }
 
     async _awake() {
@@ -173,7 +249,7 @@ export class TerminalElement extends WanixElement {
             let buffer = '';
             this.#dataDisposable = this._term.onData((data) => {
                 if (this.raw) {
-                    this.#writer.write(encoder.encode(data));
+                    this.#writer.write(encoder.encode(this.#normalizeTerminalResponse(data)));
                     return;
                 }
                 // may add line discipline as mode to terminals but for now we
@@ -181,7 +257,7 @@ export class TerminalElement extends WanixElement {
                 if (data === '\r') {
                     this._term.write('\r\n');           // echo newline
                     if (this.#writer) {
-                        this.#writer.write(encoder.encode(buffer+"\n"));
+                        this.#writer.write(encoder.encode(this.#normalizeTerminalResponse(buffer+"\n")));
                     }
                     buffer = '';
                 } else if (data === '\x7f') {   // backspace
