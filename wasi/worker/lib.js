@@ -259,13 +259,20 @@ function checkedRead() {
     throw error;
   }
 }
+function endOfCBORError() {
+  let error = new Error("Unexpected end of CBOR data");
+  error.incomplete = true;
+  return error;
+}
 function read() {
+  if (!(position < srcEnd)) throw endOfCBORError();
   let token = src[position++];
   let majorType = token >> 5;
   token = token & 31;
   if (token > 23) {
     switch (token) {
       case 24:
+        if (position >= srcEnd) throw endOfCBORError();
         token = src[position++];
         break;
       case 25:
@@ -288,6 +295,7 @@ function read() {
         }
         token = dataView.getUint32(position);
         position += 4;
+        if (majorType === 1) return -1 - token;
         break;
       case 27:
         if (majorType == 7) {
@@ -302,8 +310,7 @@ function read() {
         } else if (currentDecoder.int64AsNumber) {
           token = dataView.getUint32(position) * 4294967296;
           token += dataView.getUint32(position + 4);
-        } else
-          token = dataView.getBigUint64(position);
+        } else token = dataView.getBigUint64(position);
         position += 8;
         break;
       case 31:
@@ -390,11 +397,13 @@ function read() {
       return readFixedString(token);
     case 4:
       if (token >= maxArraySize) throw new Error(`Array length exceeds ${maxArraySize}`);
+      if (token > srcEnd - position) throw endOfCBORError();
       let array = new Array(token);
       for (let i = 0; i < token; i++) array[i] = read();
       return array;
     case 5:
       if (token >= maxMapSize) throw new Error(`Map size exceeds ${maxArraySize}`);
+      if (token > (srcEnd - position) / 2) throw endOfCBORError();
       if (currentDecoder.mapsAsObjects) {
         let object = {};
         if (currentDecoder.keyMap) for (let i = 0; i < token; i++) object[safeKey(currentDecoder.decodeKey(read()))] = read();
@@ -488,11 +497,7 @@ function read() {
           throw new Error("Unknown token " + token);
       }
     default:
-      if (isNaN(token)) {
-        let error = new Error("Unexpected end of CBOR data");
-        error.incomplete = true;
-        throw error;
-      }
+      if (isNaN(token)) throw endOfCBORError();
       throw new Error("Unknown CBOR token " + token);
   }
 }
@@ -567,25 +572,48 @@ function readStringJS(length) {
     if ((byte1 & 128) === 0) {
       units.push(byte1);
     } else if ((byte1 & 224) === 192) {
-      const byte2 = src[position++] & 63;
-      units.push((byte1 & 31) << 6 | byte2);
-    } else if ((byte1 & 240) === 224) {
-      const byte2 = src[position++] & 63;
-      const byte3 = src[position++] & 63;
-      units.push((byte1 & 31) << 12 | byte2 << 6 | byte3);
-    } else if ((byte1 & 248) === 240) {
-      const byte2 = src[position++] & 63;
-      const byte3 = src[position++] & 63;
-      const byte4 = src[position++] & 63;
-      let unit = (byte1 & 7) << 18 | byte2 << 12 | byte3 << 6 | byte4;
-      if (unit > 65535) {
-        unit -= 65536;
-        units.push(unit >>> 10 & 1023 | 55296);
-        unit = 56320 | unit & 1023;
+      if (byte1 < 194 || position >= end || (src[position] & 192) !== 128) {
+        units.push(65533);
+      } else {
+        const byte2 = src[position++] & 63;
+        units.push((byte1 & 31) << 6 | byte2);
       }
-      units.push(unit);
+    } else if ((byte1 & 240) === 224) {
+      const byte2 = position < end ? src[position] : 0;
+      if (position >= end || (byte2 & 192) !== 128 || byte1 === 224 && byte2 < 160 || byte1 === 237 && byte2 >= 160) {
+        units.push(65533);
+      } else {
+        position++;
+        if (position >= end || (src[position] & 192) !== 128) {
+          units.push(65533);
+        } else {
+          const byte3 = src[position++] & 63;
+          units.push((byte1 & 31) << 12 | (byte2 & 63) << 6 | byte3);
+        }
+      }
+    } else if ((byte1 & 248) === 240) {
+      const byte2 = position < end ? src[position] : 0;
+      if (byte1 > 244 || position >= end || (byte2 & 192) !== 128 || byte1 === 240 && byte2 < 144 || byte1 === 244 && byte2 >= 144) {
+        units.push(65533);
+      } else {
+        position++;
+        if (position >= end || (src[position] & 192) !== 128) {
+          units.push(65533);
+        } else {
+          const byte3 = src[position++] & 63;
+          if (position >= end || (src[position] & 192) !== 128) {
+            units.push(65533);
+          } else {
+            const byte4 = src[position++] & 63;
+            let unit = (byte1 & 7) << 18 | (byte2 & 63) << 12 | byte3 << 6 | byte4;
+            unit -= 65536;
+            units.push(unit >>> 10 & 1023 | 55296);
+            units.push(56320 | unit & 1023);
+          }
+        }
+      }
     } else {
-      units.push(byte1);
+      units.push(65533);
     }
     if (units.length >= 4096) {
       result += fromCharCode.apply(String, units);
@@ -1026,10 +1054,12 @@ function readBundleExt() {
   return read();
 }
 function readJustLength() {
+  if (!(position < srcEnd)) throw endOfCBORError();
   let token = src[position++] & 31;
   if (token > 23) {
     switch (token) {
       case 24:
+        if (position >= srcEnd) throw endOfCBORError();
         token = src[position++];
         break;
       case 25:
@@ -1143,8 +1173,8 @@ var Encoder = class extends Decoder {
     let structures;
     let referenceMap3;
     options = options || {};
-    let encodeUtf8 = ByteArray.prototype.utf8Write ? function(string, position5, maxBytes) {
-      return target.utf8Write(string, position5, maxBytes);
+    let encodeUtf8 = ByteArray.prototype.utf8Write ? function(string, position5) {
+      return target.utf8Write(string, position5, target.byteLength - position5);
     } : textEncoder && textEncoder.encodeInto ? function(string, position5) {
       return textEncoder.encodeInto(string, target.subarray(position5)).written;
     } : false;
@@ -1501,6 +1531,10 @@ var Encoder = class extends Decoder {
             targetView.setUint32(position2, ~value);
             position2 += 4;
           }
+        } else if (!this.alwaysUseFloat && value < 0 && value >= -4294967296 && Math.floor(value) === value) {
+          target[position2++] = 58;
+          targetView.setUint32(position2, -1 - value);
+          position2 += 4;
         } else {
           let useFloat32;
           if ((useFloat32 = this.useFloat32) > 0 && value < 4294967296 && value >= -2147483648) {
@@ -1541,6 +1575,9 @@ var Encoder = class extends Decoder {
           }
           let constructor = value.constructor;
           if (constructor === Object) {
+            if (this.skipFunction === true) {
+              value = Object.fromEntries([...Object.keys(value).filter((x) => typeof value[x] !== "function").map((x) => [x, value[x]])]);
+            }
             writeObject(value);
           } else if (constructor === Array) {
             length = value.length;

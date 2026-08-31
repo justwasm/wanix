@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const libDir = path.join(root, "node_modules", "@xterm", "xterm", "lib");
 
-const EXPECTED = "6.1.0-beta.303";
+const EXPECTED = "6.1.0-beta.304";
 const pkgFile = path.join(libDir, "..", "package.json");
 if (!fs.existsSync(pkgFile)) {
   console.error("patch-xterm: node_modules/@xterm/xterm not found; run `npm install` first");
