@@ -1,0 +1,30 @@
+<html>
+<head>
+    <title>rv64 via wanix</title>
+    <script type="module" src="../dist/wanix.min.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; background: #111; color: #ddd; }
+        wanix-namespace, wanix-term { display: block; height: 100%; }
+    </style>
+</head>
+<body>
+
+    <wanix-namespace id="linux" allow-origins="*" debug>
+
+        <!-- RISC-V Alpine root (built natively, no Docker) -->
+        <wanix-bind dst="." src="../extras/dist/wanix-linux-rv64.tgz" type="archive"></wanix-bind>
+
+        <wanix-bind dst="vm" src="#vm"></wanix-bind>
+
+        <!-- rv64 vm driver bundle (v0.3.0 runtime + wanix adapter) -->
+        <wanix-bind dst="#vm/rv64" src="../rv64/rv64.tgz?v=0.3.0" type="archive"></wanix-bind>
+
+        <!-- hvc0 = interactive terminal, ttyS0 = hostexport -->
+        <wanix-vm type="rv64" export="ttyS0" mem="512M" term start></wanix-vm>
+
+        <wanix-term raw></wanix-term>
+
+    </wanix-namespace>
+
+</body>
+</html>
