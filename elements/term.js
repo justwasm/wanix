@@ -108,6 +108,26 @@ export class TerminalElement extends WanixElement {
         });
         this._term.open(this);
 
+        // Mobile tap-to-refocus: xterm focuses from a mousedown on its screen
+        // element, but touch browsers (notably inside plugin iframes) may not
+        // synthesize that mousedown after the terminal has lost focus, so a
+        // tap never reopens the keyboard. Track the touch and focus directly
+        // on a tap; scrolls are ignored.
+        let touchStart = null;
+        this.addEventListener("touchstart", (event) => {
+            const touch = event.changedTouches[0];
+            if (touch) touchStart = { x: touch.clientX, y: touch.clientY };
+        }, { passive: true });
+        this.addEventListener("touchend", (event) => {
+            if (!touchStart) return;
+            const touch = event.changedTouches[0];
+            const moved = touch
+                ? Math.abs(touch.clientX - touchStart.x) + Math.abs(touch.clientY - touchStart.y)
+                : 0;
+            touchStart = null;
+            if (moved < 12) this.focus();
+        }, { passive: true });
+
         this.#resizeObserver = new ResizeObserver(() => {
             this._fitAddon.fit();
             this._storeDimensions();
