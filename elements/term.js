@@ -50,6 +50,8 @@ export class TerminalElement extends WanixElement {
     #progressDisposable;
     #progressBar;
     #progressFill;
+    #previousProgressState;
+    #progressDoneTimer;
 
     constructor() {
         super();
@@ -160,6 +162,11 @@ export class TerminalElement extends WanixElement {
         this.#progressBar = null;
         this.#updateProgressBar({ state: 0, value: 0 });
         this.#progressFill = null;
+        if (this.#progressDoneTimer !== undefined) {
+            clearTimeout(this.#progressDoneTimer);
+            this.#progressDoneTimer = undefined;
+        }
+        this.#previousProgressState = undefined;
         if (this._term) {
             this._term.dispose();
             this._term = null;
@@ -188,6 +195,31 @@ export class TerminalElement extends WanixElement {
         this.#progressFill.style.width = `${value}%`;
         if (state === 3) this.#progressBar.removeAttribute("aria-valuenow");
         else this.#progressBar.setAttribute("aria-valuenow", String(value));
+        // Edge-detect "agent finished its turn": OSC 9;4 state 0 with a
+        // prior non-zero state. Skip the initial all-zeros tick (no
+        // prior signal) so we don't fire on first render. The
+        // `wanix-term-progress-done` event lets the shell play a chime / update
+        // task badges without re-parsing the raw output stream.
+        if (state !== 0) {
+            if (this.#progressDoneTimer !== undefined) {
+                clearTimeout(this.#progressDoneTimer);
+                this.#progressDoneTimer = undefined;
+            }
+        } else if (
+            this.#previousProgressState &&
+            this.#previousProgressState !== 0 &&
+            this.#progressDoneTimer === undefined
+        ) {
+            this.#progressDoneTimer = setTimeout(() => {
+                this.#progressDoneTimer = undefined;
+                this.dispatchEvent(new CustomEvent("wanix-term-progress-done", {
+                    bubbles: true,
+                    composed: true,
+                    detail: { value },
+                }));
+            }, 400);
+        }
+        this.#previousProgressState = state;
     }
 
     #normalizeTerminalResponse(data) {
