@@ -82,9 +82,7 @@ func (l *p9file) SetAttr(valid p9.SetAttrMask, attr p9.SetAttr) error {
 		// Apply time changes if needed
 		if needsUpdate {
 			if err := fs.Chtimes(l.fsys, l.path, atime, mtime); err != nil {
-				if errors.Is(err, fs.ErrNotSupported) {
-					log.Printf("p9kit: chtimes on %T: %s %s\n", l.fsys, l.path, err)
-				}
+				log.Printf("p9kit: chtimes path=%q fs=%T err=%v", l.path, l.fsys, err)
 				return err
 			}
 		}
