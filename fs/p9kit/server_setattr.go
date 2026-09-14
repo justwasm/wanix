@@ -12,6 +12,7 @@ import (
 
 // SetAttr implements p9.File.SetAttr.
 func (l *p9file) SetAttr(valid p9.SetAttrMask, attr p9.SetAttr) error {
+	log.Printf("p9kit: setattr path=%q valid=%v attr=%v", l.path, valid, attr)
 	// Define what attributes we support
 	supported := p9.SetAttrMask{
 		Size:               true,
