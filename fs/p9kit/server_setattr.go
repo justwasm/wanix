@@ -12,7 +12,6 @@ import (
 
 // SetAttr implements p9.File.SetAttr.
 func (l *p9file) SetAttr(valid p9.SetAttrMask, attr p9.SetAttr) error {
-	log.Printf("p9kit: setattr path=%q valid=%v attr=%v", l.path, valid, attr)
 	// Define what attributes we support
 	supported := p9.SetAttrMask{
 		Size:               true,
@@ -82,7 +81,9 @@ func (l *p9file) SetAttr(valid p9.SetAttrMask, attr p9.SetAttr) error {
 		// Apply time changes if needed
 		if needsUpdate {
 			if err := fs.Chtimes(l.fsys, l.path, atime, mtime); err != nil {
-				log.Printf("p9kit: chtimes path=%q fs=%T err=%v", l.path, l.fsys, err)
+				if errors.Is(err, fs.ErrNotSupported) {
+					log.Printf("p9kit: chtimes on %T: %s %s\n", l.fsys, l.path, err)
+				}
 				return err
 			}
 		}

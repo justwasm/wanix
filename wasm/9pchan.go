@@ -69,9 +69,6 @@ func (h *P9Channel) handle(req []byte, send func(resp []byte)) error {
 		return fmt.Errorf("9P request too short: %d bytes", len(req))
 	}
 	tag := binary.LittleEndian.Uint16(req[5:7])
-	if req[4] == 14 || req[4] == 26 {
-		log.Printf("9p: request type=%d tag=%d", req[4], tag)
-	}
 
 	h.mu.Lock()
 	h.pending[tag] = send
@@ -114,11 +111,6 @@ func (w *respWriter) Write(p []byte) (int, error) {
 		w.h.respBuf = w.h.respBuf[size:]
 
 		tag := binary.LittleEndian.Uint16(msg[5:7])
-		if msg[4] == 7 && len(msg) >= 11 {
-			log.Printf("9p: response type=Rlerror tag=%d errno=%d", tag, binary.LittleEndian.Uint32(msg[7:11]))
-		} else if msg[4] == 15 || msg[4] == 27 {
-			log.Printf("9p: response type=%d tag=%d", msg[4], tag)
-		}
 		if send, ok := w.h.pending[tag]; ok {
 			delete(w.h.pending, tag)
 			dispatched = append(dispatched, ready{send, msg})
