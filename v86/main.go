@@ -113,7 +113,7 @@ func main() {
 		cb := args[1]
 		tag := readTag(req)
 		if req.Index(4).Int() == 26 {
-			jsutil.Log("v86: forwarding Tsetattr tag", tag)
+			log.Printf("v86: forwarding Tsetattr tag=%d", tag)
 		}
 		p9Mu.Lock()
 		if _, exists := p9Callbacks[tag]; exists {
