@@ -74,6 +74,7 @@ jobs:
           tar -tzf v86.tgz | grep -qx 'vgabios.bin'
 
       - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: v86-archive
           path: v86/v86.tgz
