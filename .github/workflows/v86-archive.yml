@@ -57,7 +57,10 @@ jobs:
       - name: Build v86 lib.js
         working-directory: v86
         run: |
-          go mod download
+          # Update go.sum for indirect dependencies that the pinned lib/build.go
+          # uses. The wanix repo ships a vendored or pinned go.mod without every
+          # transitive entry recorded.
+          GOFLAGS=-mod=mod go mod tidy
           go run lib/build.go
 
       - name: Build v86-vm.wasm
