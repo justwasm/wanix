@@ -29,11 +29,21 @@ jobs:
           go-version: "1.26"
 
       - name: Fetch upstream v86.wasm
+        env:
+          V86_RELEASE: ${{ inputs.v86_release }}
         run: |
           mkdir -p v86/bundle
+          if [ "$V86_RELEASE" = "latest" ]; then
+            tag="$(curl --fail --location --retry 3 \
+              https://api.github.com/repos/copy/v86/releases/latest \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")"
+          else
+            tag="$V86_RELEASE"
+          fi
+          echo "Resolving copy/v86 ${tag}/v86.wasm"
           curl --fail --location --retry 3 \
             -o v86/bundle/v86.wasm \
-            "https://github.com/copy/v86/releases/download/${V86_RELEASE}/v86.wasm"
+            "https://github.com/copy/v86/releases/download/${tag}/v86.wasm"
 
       - name: Fetch upstream v86 BIOS images
         env:
