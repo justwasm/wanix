@@ -1,0 +1,110 @@
+name: v86 emulator archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      v86_release:
+        description: copy/v86 release tag providing v86.wasm
+        required: true
+        default: latest
+      publish_tag:
+        description: Release tag to create or update in this repository
+        required: true
+        default: v86-archive-manual
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish v86.tgz
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Fetch upstream v86.wasm
+        run: |
+          mkdir -p v86/bundle
+          curl --fail --location --retry 3 \
+            -o v86/bundle/v86.wasm \
+            "https://github.com/copy/v86/releases/download/${V86_RELEASE}/v86.wasm"
+
+      - name: Fetch upstream v86 BIOS images
+        env:
+          V86_REPO: copy/v86
+        run: |
+          ref="$(curl --fail --location --retry 3 \
+            "https://api.github.com/repos/${V86_REPO}/releases/latest" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")"
+          for bios in seabios.bin vgabios.bin; do
+            curl --fail --location --retry 3 \
+              -o "v86/bundle/${bios}" \
+              "https://raw.githubusercontent.com/${V86_REPO}/${ref}/src/bios/${bios}"
+          done
+
+      - name: Build v86 lib.js
+        working-directory: v86
+        run: go run lib/build.go
+
+      - name: Build v86-vm.wasm
+        working-directory: v86
+        env:
+          GOOS: js
+          GOARCH: wasm
+          GOWORK: "off"
+        run: go build -o ./bundle/v86-vm.wasm .
+
+      - name: Bundle v86.tgz
+        working-directory: v86
+        run: tar -C bundle -czf v86.tgz .
+
+      - name: Inspect archive contents
+        working-directory: v86
+        run: |
+          tar -tzf v86.tgz | sort
+          tar -tzf v86.tgz | grep -qx 'v86.wasm'
+          tar -tzf v86.tgz | grep -qx 'v86-vm.wasm'
+          tar -tzf v86.tgz | grep -qx 'seabios.bin'
+          tar -tzf v86.tgz | grep -qx 'vgabios.bin'
+
+      - name: Upload artifact
+        with:
+          name: v86-archive
+          path: v86/v86.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: v86-archive
+          path: v86
+
+      - name: Publish to this repository's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_TAG: ${{ inputs.publish_tag }}
+        run: |
+          if ! gh release view "$PUBLISH_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$PUBLISH_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Wanix v86 emulator $PUBLISH_TAG" \
+              --notes "Bundles v86.wasm, v86-vm.wasm, seabios.bin, and vgabios.bin for the Wanix v86 backend."
+          fi
+          gh release upload "$PUBLISH_TAG" \
+            v86/v86.tgz \
+            --repo "$GITHUB_REPOSITORY" --clobber
