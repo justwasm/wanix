@@ -51,7 +51,7 @@ jobs:
           for bios in seabios.bin vgabios.bin; do
             curl --fail --location --retry 3 \
               -o "v86/bundle/${bios}" \
-              "https://raw.githubusercontent.com/${V86_REPO}/${tag}/src/bios/${bios}"
+              "https://raw.githubusercontent.com/${V86_REPO}/${tag}/bios/${bios}"
           done
 
       - name: Build v86 lib.js
