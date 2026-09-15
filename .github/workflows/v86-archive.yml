@@ -56,7 +56,9 @@ jobs:
 
       - name: Build v86 lib.js
         working-directory: v86
-        run: go run lib/build.go
+        run: |
+          go mod download
+          go run lib/build.go
 
       - name: Build v86-vm.wasm
         working-directory: v86
