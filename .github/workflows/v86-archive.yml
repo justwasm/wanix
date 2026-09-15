@@ -31,31 +31,27 @@ jobs:
       - name: Fetch upstream v86.wasm
         env:
           V86_RELEASE: ${{ inputs.v86_release }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p v86/bundle
-          if [ "$V86_RELEASE" = "latest" ]; then
-            tag="$(curl --fail --location --retry 3 \
-              https://api.github.com/repos/copy/v86/releases/latest \
-              | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")"
-          else
-            tag="$V86_RELEASE"
-          fi
+          # Use gh so it can resolve the "latest" alias and avoids API rate limits.
+          tag="$(gh release view "$V86_RELEASE" --repo copy/v86 --json tagName -q .tagName)"
           echo "Resolving copy/v86 ${tag}/v86.wasm"
-          curl --fail --location --retry 3 \
-            -o v86/bundle/v86.wasm \
-            "https://github.com/copy/v86/releases/download/${tag}/v86.wasm"
+          gh release download "$tag" --repo copy/v86 \
+            --pattern 'v86.wasm' \
+            --dir v86/bundle
+          test -s v86/bundle/v86.wasm
 
       - name: Fetch upstream v86 BIOS images
         env:
           V86_REPO: copy/v86
+          GH_TOKEN: ${{ github.token }}
         run: |
-          ref="$(curl --fail --location --retry 3 \
-            "https://api.github.com/repos/${V86_REPO}/releases/latest" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")"
+          tag="$(gh release view latest --repo "$V86_REPO" --json tagName -q .tagName)"
           for bios in seabios.bin vgabios.bin; do
             curl --fail --location --retry 3 \
               -o "v86/bundle/${bios}" \
-              "https://raw.githubusercontent.com/${V86_REPO}/${ref}/src/bios/${bios}"
+              "https://raw.githubusercontent.com/${V86_REPO}/${tag}/src/bios/${bios}"
           done
 
       - name: Build v86 lib.js
