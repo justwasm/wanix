@@ -294,12 +294,8 @@ func main() {
 						reject.Invoke(js.ValueOf(fmt.Sprintf("reading archive for %s: %v", dst, err)))
 						return
 					}
-					rwfs := memfs.New()
-					if err := fs.CopyFS(archiveFS, ".", rwfs, "."); err != nil {
-						reject.Invoke(js.ValueOf(fmt.Sprintf("mounting archive for %s: %v", dst, err)))
-						return
-					}
-					if err := task.NS().Bind(rwfs, ".", dst); err != nil {
+					rootfs := &cowfs.FS{Base: archiveFS, Overlay: memfs.New()}
+					if err := task.NS().Bind(rootfs, ".", dst); err != nil {
 						reject.Invoke(js.ValueOf(fmt.Sprintf("binding archive for %s: %v", dst, err)))
 						return
 					}
