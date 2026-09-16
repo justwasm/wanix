@@ -61,7 +61,8 @@ jobs:
             -o dist/wanix.debug.wasm \
             ./wasm
           go run buildjs.go
-          ls -lah dist/wanix.wasm dist/wanix.debug.wasm dist/wanix.js dist/wanix.min.js dist/wanix.handle.js
+          make -C v86 wasm
+          ls -lah dist/wanix.wasm dist/wanix.debug.wasm dist/wanix.js dist/wanix.min.js dist/wanix.handle.js v86/v86.tgz
 
       - name: Stage release assets
         run: |
@@ -77,6 +78,7 @@ jobs:
           if [ -f dist/wanix.handle.js ]; then
             cp dist/wanix.handle.js release/wanix.handle.js
           fi
+          cp v86/v86.tgz release/v86.tgz
           (cd release && sha256sum * > SHA256SUMS)
           ls -lah release
 
@@ -98,5 +100,6 @@ jobs:
             release/wanix.min.js \
             release/wanix.js \
             release/wanix.handle.js \
+            release/v86.tgz \
             release/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --clobber || true
