@@ -1,0 +1,102 @@
+name: Wanix runtime release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      publish_tag:
+        description: Runtime tag to publish (must already exist)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wanix-runtime-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish Wanix runtime artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve publish tag
+        id: tag
+        env:
+          DISPATCH_TAG: ${{ inputs.publish_tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ -n "$DISPATCH_TAG" ]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="$REF_NAME"
+          fi
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag does not exist in this repository." >&2
+            exit 2
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install Wanix JavaScript dependencies
+        run: npm ci
+
+      - name: Build wanix runtime
+        env:
+          WANIX_VERSION: ${{ steps.tag.outputs.tag }}
+        run: |
+          mkdir -p dist
+          GOOS=js GOARCH=wasm go build \
+            -ldflags="-X tractor.dev/wanix.Version=${WANIX_VERSION#v}" \
+            -o dist/wanix.wasm \
+            ./wasm
+          GOOS=js GOARCH=wasm go build \
+            -ldflags="-X tractor.dev/wanix.Version=${WANIX_VERSION#v}" \
+            -o dist/wanix.debug.wasm \
+            ./wasm
+          go run buildjs.go
+          ls -lah dist/wanix.wasm dist/wanix.debug.wasm dist/wanix.js dist/wanix.min.js dist/wanix.handle.js
+
+      - name: Stage release assets
+        run: |
+          mkdir -p release
+          cp dist/wanix.wasm release/wanix.wasm
+          cp dist/wanix.debug.wasm release/wanix.debug.wasm
+          if [ -f dist/wanix.min.js ]; then
+            cp dist/wanix.min.js release/wanix.min.js
+          fi
+          if [ -f dist/wanix.js ]; then
+            cp dist/wanix.js release/wanix.js
+          fi
+          if [ -f dist/wanix.handle.js ]; then
+            cp dist/wanix.handle.js release/wanix.handle.js
+          fi
+          (cd release && sha256sum * > SHA256SUMS)
+          ls -lah release
+
+      - name: Publish Wanix runtime release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Wanix runtime $TAG" \
+              --notes "Built by GitHub Actions from $GITHUB_SHA."
+          fi
+          gh release upload "$TAG" \
+            release/wanix.wasm \
+            release/wanix.debug.wasm \
+            release/wanix.min.js \
+            release/wanix.js \
+            release/wanix.handle.js \
+            release/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --clobber || true
