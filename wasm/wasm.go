@@ -286,23 +286,21 @@ func main() {
 				case typ == "archive":
 					v, err := jsutil.AwaitErr(binding.Get("data"))
 					if err != nil {
-						log.Println("error fetching archive", err)
+						reject.Invoke(js.ValueOf(fmt.Sprintf("fetching archive for %s: %v", dst, err)))
 						return
 					}
 					archiveFS, err := tarfs.From(tar.NewReader(jsutil.NewReadableStream(v)))
 					if err != nil {
-						log.Println("error creating archive filesystem", err)
+						reject.Invoke(js.ValueOf(fmt.Sprintf("reading archive for %s: %v", dst, err)))
 						return
 					}
 					rwfs := memfs.New()
-					// t := time.Now()
 					if err := fs.CopyFS(archiveFS, ".", rwfs, "."); err != nil {
-						log.Println("error copying archive to memory filesystem", err)
+						reject.Invoke(js.ValueOf(fmt.Sprintf("mounting archive for %s: %v", dst, err)))
 						return
 					}
-					// log.Println("copied archive to memory filesystem in", time.Since(t))
 					if err := task.NS().Bind(rwfs, ".", dst); err != nil {
-						log.Println("error binding archive", err)
+						reject.Invoke(js.ValueOf(fmt.Sprintf("binding archive for %s: %v", dst, err)))
 						return
 					}
 				case typ == "fetch" || (typ == "file" && src != ""):
