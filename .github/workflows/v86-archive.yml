@@ -36,40 +36,34 @@ jobs:
       - name: Install Wanix JavaScript dependencies
         run: npm ci
 
-      - name: Fetch upstream v86.wasm
+      - name: Fetch matching upstream v86 runtime
         env:
           V86_RELEASE: ${{ inputs.v86_release }}
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p v86/bundle
-          # Use gh so it can resolve the "latest" alias and avoids API rate limits.
           tag="$(gh release view "$V86_RELEASE" --repo copy/v86 --json tagName -q .tagName)"
-          echo "Resolving copy/v86 ${tag}/v86.wasm"
+          echo "V86_TAG=$tag" >> "$GITHUB_ENV"
           gh release download "$tag" --repo copy/v86 \
+            --pattern 'libv86.mjs' \
             --pattern 'v86.wasm' \
             --dir v86/bundle
+          mv v86/bundle/libv86.mjs v86/lib.js
+          test -s v86/lib.js
           test -s v86/bundle/v86.wasm
 
-      - name: Fetch upstream v86 BIOS images
+      - name: Fetch matching upstream v86 BIOS images
         env:
           V86_REPO: copy/v86
-          GH_TOKEN: ${{ github.token }}
         run: |
-          tag="$(gh release view latest --repo "$V86_REPO" --json tagName -q .tagName)"
           for bios in seabios.bin vgabios.bin; do
             curl --fail --location --retry 3 \
               -o "v86/bundle/${bios}" \
-              "https://raw.githubusercontent.com/${V86_REPO}/${tag}/bios/${bios}"
+              "https://raw.githubusercontent.com/${V86_REPO}/${V86_TAG}/bios/${bios}"
           done
 
-      - name: Build v86 lib.js
-        working-directory: v86
-        run: |
-          # Update go.sum for indirect dependencies that the pinned lib/build.go
-          # uses. The wanix repo ships a vendored or pinned go.mod without every
-          # transitive entry recorded.
-          GOFLAGS=-mod=mod go mod tidy
-          go run lib/build.go
+      - name: Verify v86 JS and Wasm ABI
+        run: node v86/test-wasm-exports.mjs v86/bundle/v86.wasm
 
       - name: Build v86-vm.wasm
         working-directory: v86
@@ -81,7 +75,7 @@ jobs:
 
       - name: Bundle v86.tgz
         working-directory: v86
-        run: tar -C bundle -czf v86.tgz .
+        run: tar -C bundle -czf v86.tgz v86.wasm v86-vm.wasm seabios.bin vgabios.bin
 
       - name: Inspect archive contents
         working-directory: v86
