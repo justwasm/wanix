@@ -241,10 +241,10 @@ func main() {
 
 		tmpScreen := js.Global().Get("OffscreenCanvas").New(800, 600)
 		screenAdapter := jsmod.Get("OffscreenScreenAdapter").New(tmpScreen, js.FuncOf(func(this js.Value, args []js.Value) any {
-			vm.Get("v86").Get("cpu").Get("devices").Get("vga").Call("screen_fill_buffer")
+			vm.Get("v86").Get("cpu").Get("vga").Call("screen_fill_buffer")
 			return nil
 		}))
-		vm.Get("v86").Get("cpu").Get("devices").Get("vga").Set("screen", screenAdapter)
+		vm.Get("v86").Get("cpu").Get("vga").Set("screen", screenAdapter)
 		vm.Set("screen_adapter", screenAdapter)
 
 		go sendStdin()
