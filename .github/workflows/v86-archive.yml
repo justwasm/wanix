@@ -82,7 +82,7 @@ jobs:
         run: |
           tar -tzf v86.tgz | sort
           for asset in v86.wasm v86-vm.wasm seabios.bin vgabios.bin; do
-            tar -tf v86.tgz --wildcards "*/${asset}" >/dev/null
+            tar -tf v86.tgz "$asset" >/dev/null
           done
 
       - name: Upload artifact
