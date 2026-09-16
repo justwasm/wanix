@@ -10,6 +10,11 @@ on:
         description: Runtime tag to publish (must already exist)
         required: true
         type: string
+      v86_release:
+        description: copy/v86 release tag to package
+        required: true
+        default: latest
+        type: string
 
 permissions:
   contents: write
@@ -50,6 +55,8 @@ jobs:
       - name: Build wanix runtime
         env:
           WANIX_VERSION: ${{ steps.tag.outputs.tag }}
+          V86_RELEASE: ${{ inputs.v86_release || 'latest' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
           GOOS=js GOARCH=wasm go build \
@@ -61,7 +68,24 @@ jobs:
             -o dist/wanix.debug.wasm \
             ./wasm
           go run buildjs.go
-          make -C v86 wasm
+          mkdir -p v86/bundle
+          tag="$(gh release view "${V86_RELEASE:-latest}" --repo copy/v86 --json tagName -q .tagName)"
+          gh release download "$tag" --repo copy/v86 \
+            --pattern 'libv86.mjs' \
+            --pattern 'v86.wasm' \
+            --dir v86/bundle
+          mv v86/bundle/libv86.mjs v86/lib.js
+          node v86/test-wasm-exports.mjs v86/bundle/v86.wasm
+          for bios in seabios.bin vgabios.bin; do
+            curl --fail --location --retry 3 \
+              -o "v86/bundle/${bios}" \
+              "https://raw.githubusercontent.com/copy/v86/${tag}/bios/${bios}"
+          done
+          GOWORK=off GOOS=js GOARCH=wasm go build -C v86 -o bundle/v86-vm.wasm .
+          tar -C v86/bundle -czf v86/v86.tgz v86.wasm v86-vm.wasm seabios.bin vgabios.bin
+          for asset in v86.wasm v86-vm.wasm seabios.bin vgabios.bin; do
+            tar -tf v86/v86.tgz "$asset" >/dev/null
+          done
           ls -lah dist/wanix.wasm dist/wanix.debug.wasm dist/wanix.js dist/wanix.min.js dist/wanix.handle.js v86/v86.tgz
 
       - name: Stage release assets
