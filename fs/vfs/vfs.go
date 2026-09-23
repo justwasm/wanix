@@ -170,6 +170,40 @@ func (ns *NS) Open(name string) (fs.File, error) {
 	return ns.OpenContext(ctx, name)
 }
 
+// Readlink implements fs.ReadlinkFS so the 9P server resolves symlink
+// targets through the namespace rather than reading the (empty)
+// symlink body of a tar entry. Without it, fs.Readlink falls back to
+// io.ReadAll on the opened file, which returns an empty byte slice for
+// any symlink whose target lives in a tar archive (tar symlinks carry
+// their target in the header, not the body), and the kernel VFS sees
+// an empty readlink reply.
+func (ns *NS) Readlink(name string) (string, error) {
+	name = cleanPath(name)
+	if !fs.ValidPath(name) {
+		return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrNotExist}
+	}
+
+	ctx := fs.WithReadOnly(fs.WithOrigin(ns.ctx, ns, name, "readlink"))
+
+	if refs, exists := ns.table.Snapshot()[name]; exists {
+		for _, ref := range refs {
+			if rfsys, ok := ref.FS.(fs.ReadlinkFS); ok {
+				return rfsys.Readlink(ref.Path)
+			}
+		}
+	}
+
+	tfsys, tname, err := fs.ResolveTo[fs.ReadlinkFS](ns, ctx, name)
+	if err == nil {
+		return tfsys.Readlink(tname)
+	}
+	if !errors.Is(err, fs.ErrNotSupported) {
+		return "", err
+	}
+
+	return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrNotExist}
+}
+
 // OpenContext opens a path in the namespace.
 //
 // Directory unions are recursive: when multiple bindings share a bind point
