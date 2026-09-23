@@ -849,10 +849,12 @@ func (u *FS) Readlink(name string) (string, error) {
 	}
 
 	// 3. Try overlay first
-	if target, err := fs.Readlink(u.Overlay, path); err == nil {
-		return target, nil
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return "", err
+	if u.Overlay != nil {
+		if target, err := fs.Readlink(u.Overlay, path); err == nil {
+			return target, nil
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
 	}
 
 	// 4. Fall back to base
