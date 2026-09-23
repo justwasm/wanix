@@ -170,6 +170,24 @@ func (ns *NS) Open(name string) (fs.File, error) {
 	return ns.OpenContext(ctx, name)
 }
 
+func (ns *NS) Readlink(name string) (string, error) {
+	name = cleanPath(name)
+	if !fs.ValidPath(name) {
+		return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrNotExist}
+	}
+
+	ctx := fs.WithReadOnly(fs.WithOrigin(ns.ctx, ns, name, "readlink"))
+	tfsys, tname, err := fs.ResolveTo[fs.ReadlinkFS](ns, ctx, name)
+	if err == nil {
+		return tfsys.Readlink(tname)
+	}
+	if !errors.Is(err, fs.ErrNotSupported) {
+		return "", err
+	}
+
+	return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrNotExist}
+}
+
 // OpenContext opens a path in the namespace.
 //
 // Directory unions are recursive: when multiple bindings share a bind point

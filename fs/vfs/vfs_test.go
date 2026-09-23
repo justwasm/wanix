@@ -1,6 +1,7 @@
 package vfs
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"path"
@@ -11,8 +12,10 @@ import (
 
 	"tractor.dev/wanix/fs"
 
+	"tractor.dev/wanix/fs/cowfs"
 	"tractor.dev/wanix/fs/fskit"
 	"tractor.dev/wanix/fs/memfs"
+	"tractor.dev/wanix/fs/tarfs"
 )
 
 func TestNamespace(t *testing.T) {
@@ -60,6 +63,34 @@ func TestNamespace(t *testing.T) {
 	_, err = ns.Open("nonexistent")
 	if err == nil {
 		t.Error("Expected error for nonexistent file")
+	}
+}
+
+func TestNamespaceReadlink(t *testing.T) {
+	var archive bytes.Buffer
+	writer := tar.NewWriter(&archive)
+	if err := writer.WriteHeader(&tar.Header{Name: "bin/sh", Typeflag: tar.TypeSymlink, Linkname: "/bin/busybox", Mode: 0755}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	base, err := tarfs.From(tar.NewReader(&archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ns := New(context.Background())
+	if err := ns.Bind(&cowfs.FS{Base: base, Overlay: memfs.New()}, ".", ".", BindAfter); err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := fs.Readlink(ns, "bin/sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "/bin/busybox" {
+		t.Fatalf("Readlink target = %q, want %q", target, "/bin/busybox")
 	}
 }
 
