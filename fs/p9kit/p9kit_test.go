@@ -1,6 +1,8 @@
 package p9kit
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,8 +13,11 @@ import (
 
 	"github.com/hugelgupf/p9/p9"
 	"tractor.dev/wanix/fs"
+	"tractor.dev/wanix/fs/cowfs"
 	"tractor.dev/wanix/fs/fskit"
 	"tractor.dev/wanix/fs/memfs"
+	"tractor.dev/wanix/fs/tarfs"
+	"tractor.dev/wanix/fs/vfs"
 )
 
 // testSetup creates a connected server and client for testing
@@ -107,6 +112,61 @@ func TestIntegration_BasicReadWrite(t *testing.T) {
 			t.Errorf("ReadDir: expected foo3, got %s", entries[0].Name())
 		}
 	})
+}
+
+func TestIntegration_TarSymlinkReadlink(t *testing.T) {
+	var archive bytes.Buffer
+	writer := tar.NewWriter(&archive)
+	if err := writer.WriteHeader(&tar.Header{Name: "bin/", Typeflag: tar.TypeDir, Mode: 0755}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteHeader(&tar.Header{Name: "bin/sh", Typeflag: tar.TypeSymlink, Linkname: "/bin/busybox", Mode: 0755}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	base, err := tarfs.From(tar.NewReader(&archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ns := vfs.New(context.Background())
+	if err := ns.Bind(&cowfs.FS{Base: base, Overlay: memfs.New()}, ".", ".", vfs.BindAfter); err != nil {
+		t.Fatal(err)
+	}
+	info, err := fs.StatContext(fs.WithNoFollow(context.Background()), ns, "bin/sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&fs.ModeSymlink == 0 {
+		t.Fatalf("mode = %v, want symbolic link", info.Mode())
+	}
+	root := &p9file{path: ".", fsys: ns}
+	qids, linked, err := root.Walk([]string{"bin", "sh"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(qids) != 2 || qids[1].Type&p9.TypeSymlink == 0 {
+		t.Fatalf("server walk qids = %#v, want terminal symlink", qids)
+	}
+	target, err := linked.Readlink()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "/bin/busybox" {
+		t.Fatalf("server target = %q, want %q", target, "/bin/busybox")
+	}
+	client, cleanup := testSetup(t, ns)
+	defer cleanup()
+
+	target, err = fs.Readlink(client, "bin/sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "/bin/busybox" {
+		t.Fatalf("Readlink target = %q, want %q", target, "/bin/busybox")
+	}
 }
 
 func TestIntegration_CreateAndWrite(t *testing.T) {

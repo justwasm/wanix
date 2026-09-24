@@ -110,6 +110,20 @@ func (l *p9file) info() (p9.QID, fs.FileInfo, error) {
 	return qid, fi, nil
 }
 
+func (l *p9file) WalkGetAttr(names []string) ([]p9.QID, p9.File, p9.AttrMask, p9.Attr, error) {
+	qids, file, err := l.Walk(names)
+	if err != nil {
+		return nil, nil, p9.AttrMask{}, p9.Attr{}, err
+	}
+
+	_, valid, attr, err := file.(*p9file).GetAttr(p9.AttrMaskAll)
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, p9.AttrMask{}, p9.Attr{}, err
+	}
+	return qids, file, valid, attr, nil
+}
+
 // Walk implements p9.File.Walk.
 func (l *p9file) Walk(names []string) ([]p9.QID, p9.File, error) {
 	// log.Println("server walk:", l.path, names)
@@ -123,9 +137,12 @@ func (l *p9file) Walk(names []string) ([]p9.QID, p9.File, error) {
 
 	for _, name := range names {
 		c := &p9file{path: path.Clean(path.Join(last.path, name)), fsys: l.fsys, vattrs: l.vattrs}
-		qid, _, err := c.info()
+		qid, fi, err := c.info()
 		if err != nil {
 			return nil, nil, err
+		}
+		if !fi.IsDir() && name != names[len(names)-1] {
+			return nil, nil, fs.ErrNotExist
 		}
 		qids = append(qids, qid)
 		last = c
