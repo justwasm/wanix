@@ -175,7 +175,7 @@ func parseNetdev(netdev string) map[string]any {
 		return nil
 	}
 
-	config := make(map[string]any)
+	config := map[string]any{"type": "virtio"}
 	for i := 1; i < len(parts); i++ {
 		kv := strings.SplitN(parts[i], "=", 2)
 		if len(kv) == 2 {

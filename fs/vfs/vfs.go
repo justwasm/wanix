@@ -176,13 +176,22 @@ func (ns *NS) Readlink(name string) (string, error) {
 		return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrNotExist}
 	}
 
-	ctx := fs.WithReadOnly(fs.WithOrigin(ns.ctx, ns, name, "readlink"))
-	tfsys, tname, err := fs.ResolveTo[fs.ReadlinkFS](ns, ctx, name)
-	if err == nil {
-		return tfsys.Readlink(tname)
+	bindings := ns.table.Snapshot()
+	var bindPaths []string
+	for bindPath := range bindings {
+		bindPaths = append(bindPaths, bindPath)
 	}
-	if !errors.Is(err, fs.ErrNotSupported) {
-		return "", err
+	for _, bindPath := range fskit.MatchPaths(bindPaths, name) {
+		relativePath := strings.Trim(strings.TrimPrefix(name, bindPath), "/")
+		for _, ref := range bindings[bindPath] {
+			target, err := fs.Readlink(ref.FS, path.Join(ref.Path, relativePath))
+			if err == nil {
+				return target, nil
+			}
+			if !errors.Is(err, fs.ErrNotExist) {
+				return "", err
+			}
+		}
 	}
 
 	return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrNotExist}
