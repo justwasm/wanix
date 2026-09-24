@@ -94,7 +94,7 @@ func parseFlags(args []string) (map[string]any, error) {
 			"rw",
 			"root=host9p",
 			"rootfstype=9p",
-			"rootflags=trans=virtio,version=9p2000.L,cache=loose,access=any,msize=131072",
+			"rootflags=trans=virtio,version=9p2000.L,cache=none,access=any,msize=131072",
 		}
 		cmdline += " " + strings.Join(fsargs, " ")
 		// up to caller to set up filesystem (handle9p)
