@@ -1,0 +1,88 @@
+name: Mirror Wanix JS bundle
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      publish_tag:
+        description: Wanix tag to mirror (e.g. v0.4.61)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wanix-min-mirror-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Publish wanix.min.js to justwasm/wanix-min
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        env:
+          DISPATCH_TAG: ${{ inputs.publish_tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ -n "$DISPATCH_TAG" ]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="$REF_NAME"
+          fi
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag does not exist in this repository." >&2
+            exit 2
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Download release bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'wanix.min.js' \
+            --dir /tmp/wanix-bundle
+          test -f /tmp/wanix-bundle/wanix.min.js
+          cp /tmp/wanix-bundle/wanix.min.js wanix.min.js
+          ls -lah wanix.min.js
+
+      - name: Push to mirror repository
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ secrets.WANIX_MIN_BOT_TOKEN }}
+        run: |
+          git config user.name "wanix-bot"
+          git config user.email "bot@justwasm.com"
+          git remote add mirror "https://x-access-token:${GH_TOKEN}@github.com/justwasm/wanix-min.git"
+          git fetch mirror main
+          git checkout -B main FETCH_HEAD
+          git checkout main || git checkout --orphan main
+          cp wanix.min.js /tmp/wanix-mirror/wanix.min.js 2>/dev/null || true
+          mkdir -p /tmp/wanix-mirror
+          cp wanix.min.js /tmp/wanix-mirror/wanix.min.js
+          cd /tmp/wanix-mirror
+          git init -q
+          git remote add mirror "https://x-access-token:${GH_TOKEN}@github.com/justwasm/wanix-min.git"
+          git fetch mirror main --depth 1
+          git checkout -B main FETCH_HEAD || git checkout --orphan main
+          git config user.name "wanix-bot"
+          git config user.email "bot@justwasm.com"
+          cp /tmp/wanix-bundle/wanix.min.js wanix.min.js
+          git add wanix.min.js
+          if git diff --cached --quiet; then
+            echo "No change to mirror."
+            exit 0
+          fi
+          git commit -m "wanix $TAG"
+          git push mirror main --force
