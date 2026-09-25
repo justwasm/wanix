@@ -36,7 +36,7 @@ export class BindElement extends HTMLElement {
             });
             break;
         case "oci":
-            this.layers = fetchOCIImage(this.src, this.getAttribute("platform") || "linux/amd64");
+            this.layers = fetchOCIImage(this.src, this.getAttribute("platform") || "linux/amd64", this.getAttribute("proxy") || "");
             break;
         case "fetch": // deprecated, use "file" instead
         case "file":
