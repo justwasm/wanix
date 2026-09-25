@@ -382,7 +382,7 @@ func main() {
 						return
 					}
 					if v.Get("kind").String() != "directory" {
-						reject.Invoke(fmt.Errorf("localdir: data must resolve to a FileSystemDirectoryHandle"))
+						reject.Invoke(js.ValueOf("localdir: data must resolve to a FileSystemDirectoryHandle"))
 						return
 					}
 					localFS := fsa.NewFS(v)
