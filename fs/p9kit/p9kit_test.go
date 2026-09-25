@@ -115,24 +115,13 @@ func TestIntegration_BasicReadWrite(t *testing.T) {
 }
 
 func TestIntegration_TarSymlinkReadlink(t *testing.T) {
-	var archive bytes.Buffer
-	writer := tar.NewWriter(&archive)
-	if err := writer.WriteHeader(&tar.Header{Name: "bin/", Typeflag: tar.TypeDir, Mode: 0755}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.WriteHeader(&tar.Header{Name: "bin/sh", Typeflag: tar.TypeSymlink, Linkname: "/bin/busybox", Mode: 0755}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	base, err := tarfs.From(tar.NewReader(&archive))
-	if err != nil {
-		t.Fatal(err)
-	}
+	base := tarSymlinkFS(t, "/bin/base")
+	overlay := tarSymlinkFS(t, "/bin/busybox")
 	ns := vfs.New(context.Background())
 	if err := ns.Bind(&cowfs.FS{Base: base, Overlay: memfs.New()}, ".", ".", vfs.BindAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := ns.Bind(&cowfs.FS{Base: overlay, Overlay: memfs.New()}, ".", ".", vfs.BindAfter); err != nil {
 		t.Fatal(err)
 	}
 	info, err := fs.StatContext(fs.WithNoFollow(context.Background()), ns, "bin/sh")
@@ -167,6 +156,26 @@ func TestIntegration_TarSymlinkReadlink(t *testing.T) {
 	if target != "/bin/busybox" {
 		t.Fatalf("Readlink target = %q, want %q", target, "/bin/busybox")
 	}
+}
+
+func tarSymlinkFS(t *testing.T, target string) fs.FS {
+	t.Helper()
+	var archive bytes.Buffer
+	writer := tar.NewWriter(&archive)
+	if err := writer.WriteHeader(&tar.Header{Name: "bin/", Typeflag: tar.TypeDir, Mode: 0755}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteHeader(&tar.Header{Name: "bin/sh", Typeflag: tar.TypeSymlink, Linkname: target, Mode: 0755}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fsys, err := tarfs.From(tar.NewReader(&archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fsys
 }
 
 func TestIntegration_CreateAndWrite(t *testing.T) {

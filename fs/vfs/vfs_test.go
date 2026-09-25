@@ -317,6 +317,39 @@ func TestUnionBinding(t *testing.T) {
 	}
 }
 
+func TestUnionReadlinkPrecedence(t *testing.T) {
+	base := memfs.New()
+	if err := fs.MkdirAll(base, "bin", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.Symlink(base, "/bin/base", "bin/sh"); err != nil {
+		t.Fatal(err)
+	}
+	overlay := memfs.New()
+	if err := fs.MkdirAll(overlay, "bin", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.Symlink(overlay, "/bin/overlay", "bin/sh"); err != nil {
+		t.Fatal(err)
+	}
+
+	ns := New(context.Background())
+	if err := ns.Bind(base, ".", ".", BindAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := ns.Bind(overlay, ".", ".", BindAfter); err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := fs.Readlink(ns, "bin/sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "/bin/overlay" {
+		t.Fatalf("Readlink target = %q, want %q", target, "/bin/overlay")
+	}
+}
+
 func TestBindingModes(t *testing.T) {
 	// Create test filesystems
 	fs1 := fstest.MapFS{"file.txt": {Data: []byte("fs1")}}
