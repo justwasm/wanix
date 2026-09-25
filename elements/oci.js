@@ -26,7 +26,7 @@ function parseReference(reference) {
     const explicitRegistry = first.includes(".") || first.includes(":") || first === "localhost";
     const registry = !explicitRegistry || first === "docker.io" ? "registry-1.docker.io" : first;
     let repository = explicitRegistry ? value.slice(slash + 1) : value;
-    if (!explicitRegistry && !repository.includes("/")) repository = `library/${repository}`;
+    if (registry === "registry-1.docker.io" && !repository.includes("/")) repository = `library/${repository}`;
     const digestIndex = repository.indexOf("@");
     if (digestIndex >= 0) {
         return { registry, repository: repository.slice(0, digestIndex), reference: repository.slice(digestIndex + 1) };
