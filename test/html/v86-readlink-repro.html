@@ -64,7 +64,8 @@
       const writable = await namespace.root.openWritable(`${vm.path}/term/data`);
       const reader = readable.getReader();
       const writer = writable.getWriter();
-      await writer.write(encoder.encode("readlink /bin/sh; /bin/busybox readlink /bin/sh; /bin/sh -c 'echo SH_OK'; echo __V86_SMOKE_DONE__\n"));
+      await readUntil(reader, " # ");
+      await writer.write(encoder.encode("readlink /bin/sh; /bin/busybox readlink /bin/sh; /bin/sh -c 'echo SH_OK'; echo __V86_SMOKE_DONE__\r"));
       const output = await readUntil(reader, "__V86_SMOKE_DONE__");
       await writer.close();
       await reader.cancel();
