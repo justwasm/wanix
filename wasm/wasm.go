@@ -25,6 +25,7 @@ import (
 	"tractor.dev/wanix/fs/cowfs"
 	"tractor.dev/wanix/fs/httpfs"
 	"tractor.dev/wanix/fs/memfs"
+	"tractor.dev/wanix/fs/ocifs"
 	"tractor.dev/wanix/fs/p9kit"
 	"tractor.dev/wanix/fs/pipe"
 	"tractor.dev/wanix/fs/signal"
@@ -254,7 +255,14 @@ func main() {
 				if !binding.Get("src").IsNull() {
 					src = binding.Get("src").String()
 				}
-				// union := binding.Get("union").String()
+				union := binding.Get("union").String()
+				placement := fs.BindAfter
+				switch union {
+				case "before":
+					placement = fs.BindBefore
+				case "replace":
+					placement = fs.BindReplace
+				}
 
 				optsObj := binding.Get("opts")
 				var opts []fs.BindOption
@@ -295,8 +303,28 @@ func main() {
 						return
 					}
 					rootfs := &cowfs.FS{Base: archiveFS, Overlay: memfs.New()}
-					if err := task.NS().Bind(rootfs, ".", dst); err != nil {
+					if err := task.NS().Bind(rootfs, ".", dst, placement); err != nil {
 						reject.Invoke(js.ValueOf(fmt.Sprintf("binding archive for %s: %v", dst, err)))
+						return
+					}
+				case typ == "oci":
+					layersValue, err := jsutil.AwaitErr(binding.Get("layers"))
+					if err != nil {
+						reject.Invoke(js.ValueOf(fmt.Sprintf("fetching OCI image for %s: %v", dst, err)))
+						return
+					}
+					layers := make([]io.Reader, layersValue.Length())
+					for index := range layers {
+						layers[index] = jsutil.NewReadableStream(layersValue.Index(index))
+					}
+					imageFS, err := ocifs.New(layers)
+					if err != nil {
+						reject.Invoke(js.ValueOf(fmt.Sprintf("reading OCI image for %s: %v", dst, err)))
+						return
+					}
+					rootfs := &cowfs.FS{Base: imageFS, Overlay: memfs.New()}
+					if err := task.NS().Bind(rootfs, ".", dst, placement); err != nil {
+						reject.Invoke(js.ValueOf(fmt.Sprintf("binding OCI image for %s: %v", dst, err)))
 						return
 					}
 				case typ == "fetch" || (typ == "file" && src != ""):

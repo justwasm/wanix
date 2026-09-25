@@ -1,4 +1,6 @@
 
+import { fetchOCIImage } from "./oci.js";
+
 export class BindElement extends HTMLElement {
     constructor() {
         super();
@@ -32,6 +34,9 @@ export class BindElement extends HTMLElement {
                     reject(err);
                 });
             });
+            break;
+        case "oci":
+            this.layers = fetchOCIImage(this.src, this.getAttribute("platform") || "linux/amd64");
             break;
         case "fetch": // deprecated, use "file" instead
         case "file":
