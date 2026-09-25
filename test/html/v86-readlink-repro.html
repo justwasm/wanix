@@ -17,14 +17,66 @@
     <wanix-bind dst="vm" src="#vm"></wanix-bind>
     <wanix-bind type="archive" dst="#vm/v86" src="v86-readlink-assets/v86.tgz"></wanix-bind>
     <wanix-vm export="ttyS0" mem="512M" term start></wanix-vm>
-    <wanix-term raw></wanix-term>
   </wanix-namespace>
   <script type="module">
     const result = document.getElementById("result");
     const namespace = document.getElementById("repro");
-    await namespace._nsReady;
-    const target = await namespace.root.readlink("bin/sh");
-    result.textContent = `host readlink /bin/sh = ${JSON.stringify(target)}`;
+    const vm = namespace.querySelector("wanix-vm");
+    const term = namespace.querySelector("wanix-term");
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    async function waitFor(path, timeout = 60000) {
+      await namespace.root.waitFor(path, timeout);
+    }
+
+    async function waitForVm(timeout = 60000) {
+      const deadline = Date.now() + timeout;
+      while (!vm.rid) {
+        if (Date.now() >= deadline) throw new Error("timed out waiting for v86 allocation");
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    async function readUntil(reader, marker, timeout = 60000) {
+      let output = "";
+      const deadline = Date.now() + timeout;
+      while (Date.now() < deadline) {
+        const remaining = deadline - Date.now();
+        const chunk = await Promise.race([
+          reader.read(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error(`timed out waiting for ${marker}`)), remaining)),
+        ]);
+        if (chunk.done) throw new Error("guest terminal closed before smoke test completed");
+        output += decoder.decode(chunk.value, { stream: true });
+        if (output.includes(marker)) return output;
+      }
+      throw new Error(`timed out waiting for ${marker}`);
+    }
+
+    try {
+      await namespace._nsReady;
+      const target = await namespace.root.readlink("bin/sh");
+      if (target !== "/bin/busybox") throw new Error(`host readlink /bin/sh = ${JSON.stringify(target)}`);
+      await waitForVm();
+      await waitFor(`${vm.path}/term/data`);
+      const readable = await namespace.root.openReadable(`${vm.path}/term/data`);
+      const writable = await namespace.root.openWritable(`${vm.path}/term/data`);
+      const reader = readable.getReader();
+      const writer = writable.getWriter();
+      await writer.write(encoder.encode("readlink /bin/sh; /bin/busybox readlink /bin/sh; /bin/sh -c 'echo SH_OK'; echo __V86_SMOKE_DONE__\n"));
+      const output = await readUntil(reader, "__V86_SMOKE_DONE__");
+      await writer.close();
+      await reader.cancel();
+      for (const expected of ["/bin/busybox", "SH_OK", "__V86_SMOKE_DONE__"]) {
+        if (!output.includes(expected)) throw new Error(`guest output missing ${expected}: ${JSON.stringify(output)}`);
+      }
+      result.textContent = "v86 symlink smoke: PASS";
+      window.__wtest_done = true;
+    } catch (error) {
+      result.textContent = `v86 symlink smoke: FAIL\n${error.stack || error}`;
+      throw error;
+    }
   </script>
 </body>
 </html>

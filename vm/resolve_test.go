@@ -6,6 +6,7 @@ import (
 
 	"tractor.dev/wanix"
 	"tractor.dev/wanix/fs"
+	"tractor.dev/wanix/fs/memfs"
 	"tractor.dev/wanix/fs/vfs"
 )
 
@@ -37,6 +38,23 @@ func TestResolveDeviceNamespaceReturnsDevice(t *testing.T) {
 // working: the device routes non-root names into its union so operations
 // descend into the VM resource's own namespace. This is the behavior the
 // device became a RouteFS for.
+func TestSetGuestInitializesVMNamespace(t *testing.T) {
+	root, err := wanix.NewRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm := &VM{id: "1", kind: "x86", device: New(root)}
+	if err := vm.SetGuest(memfs.New()); err != nil {
+		t.Fatal(err)
+	}
+	if vm.vfs == nil {
+		t.Fatal("SetGuest did not initialize the VM namespace")
+	}
+	if vm.Guest() == nil {
+		t.Fatal("SetGuest did not retain the exported guest filesystem")
+	}
+}
+
 func TestTypedOpsOnVMResource(t *testing.T) {
 	root, err := wanix.NewRoot()
 	if err != nil {

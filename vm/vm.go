@@ -42,14 +42,15 @@ func (r *VM) Guest() fs.FS {
 }
 
 func (r *VM) SetGuest(exported fs.FS) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.vfs == nil {
-		panic("vfs not initialized before setting guest")
+	vfsys, err := r.root()
+	if err != nil {
+		return err
 	}
+	r.mu.Lock()
 	r.guest = exported
+	r.mu.Unlock()
 	go func() {
-		if err := r.vfs.Bind(r.guest, ".", "guest"); err != nil {
+		if err := vfsys.Bind(exported, ".", "guest"); err != nil {
 			log.Println("error binding guest", err)
 		}
 	}()
