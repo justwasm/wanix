@@ -4,7 +4,7 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 assets="$here/v86-readlink-assets"
 rv64_release="v0.4.35"
-wanix_release="v0.4.56"
+wanix_release="v0.4.57"
 
 mkdir -p "$assets"
 gh release download "$rv64_release" --repo justwasm/rv64.js --dir "$assets" --clobber \
