@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>v86 9P readlink repro</title>
+  <script type="module" src="v86-readlink-assets/wanix.min.js"></script>
+  <style>
+    html, body, wanix-namespace, wanix-term { height: 100%; margin: 0; display: block; }
+  </style>
+</head>
+<body>
+  <pre id="result"></pre>
+  <wanix-namespace id="repro" debug wasm="v86-readlink-assets/wanix.wasm">
+    <wanix-bind type="archive" dst="." src="v86-readlink-assets/wanix-linux-x86.tgz"></wanix-bind>
+    <wanix-bind type="archive" dst="." src="v86-readlink-assets/wanix-overlay-x86.tgz" union="after"></wanix-bind>
+    <wanix-bind type="file" dst="boot/bzImage" src="v86-readlink-assets/rv64-kernel-x86-minimal"></wanix-bind>
+    <wanix-bind dst="vm" src="#vm"></wanix-bind>
+    <wanix-bind type="archive" dst="#vm/v86" src="v86-readlink-assets/v86.tgz"></wanix-bind>
+    <wanix-vm export="ttyS0" mem="512M" term start></wanix-vm>
+    <wanix-term raw></wanix-term>
+  </wanix-namespace>
+  <script type="module">
+    const result = document.getElementById("result");
+    const namespace = document.getElementById("repro");
+    await namespace._nsReady;
+    const target = await namespace.root.readlink("bin/sh");
+    result.textContent = `host readlink /bin/sh = ${JSON.stringify(target)}`;
+  </script>
+</body>
+</html>
