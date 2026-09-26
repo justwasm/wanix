@@ -135,10 +135,7 @@ async function writeLayerToCache(digest, gzipBytes, storage, limit) {
         const writable = await fileHandle.createWritable();
         await writable.write(gzipBytes);
         await writable.close();
-        await storage.layers.moveEntry(tempName, name).catch(async () => {
-            // Fallback: target may already exist; drop the temp file.
-            await storage.layers.removeEntry(tempName).catch(() => {});
-        });
+        await commitTempFile(storage.layers, tempName, name);
         lastStats.writes += 1;
         await enforceLimit(storage, limit);
         return readLayerFromCache(digest, storage);
@@ -147,6 +144,26 @@ async function writeLayerToCache(digest, gzipBytes, storage, limit) {
     try { return await next; } finally {
         if (inflight.get(lockKey) === next.catch(() => {})) inflight.delete(lockKey);
     }
+}
+
+async function commitTempFile(dir, tempName, finalName) {
+    // `moveEntry` is the cheap path on supporting browsers; fall back
+    // to a copy-and-remove when it is missing (Safari, older Chromium).
+    if (typeof dir.moveEntry === "function") {
+        try {
+            await dir.moveEntry(tempName, finalName);
+            return;
+        } catch (err) {
+            if (err && err.name !== "NotFoundError") console.warn("OCI cache moveEntry failed", err);
+        }
+    }
+    const source = await dir.getFileHandle(tempName);
+    const bytes = new Uint8Array(await (await source.getFile()).arrayBuffer());
+    const target = await dir.getFileHandle(finalName, { create: true });
+    const writable = await target.createWritable();
+    await writable.write(bytes);
+    await writable.close();
+    await dir.removeEntry(tempName).catch(() => {});
 }
 
 async function enforceLimit(storage, limit) {
@@ -219,9 +236,7 @@ async function writeManifestToCache(reference, manifest, storage) {
     const writable = await fileHandle.createWritable();
     await writable.write(JSON.stringify(manifest));
     await writable.close();
-    await storage.manifests.moveEntry(tempName, key + META_EXT).catch(async () => {
-        await storage.manifests.removeEntry(tempName).catch(() => {});
-    });
+    await commitTempFile(storage.manifests, tempName, key + META_EXT);
 }
 
 export async function readCachedManifest(reference, options = {}) {
