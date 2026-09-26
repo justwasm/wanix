@@ -104,12 +104,12 @@ async function readLayerFromCache(digest, storage) {
     try {
         const fileHandle = await storage.layers.getFileHandle(name);
         const file = await fileHandle.getFile();
-        // Stream first, then verify on the fly. The cache layer is small
-        // (a few MB per entry) and reading the bytes into memory just to
-        // hash them would close the file handle on every cache hit.
+        // Stream the file (so the file handle stays valid through the
+        // returned stream) and tee off a copy for digest verification.
+        // The consumer decompresses once it knows the layer's mediaType
+        // and/or the magic number.
         const stream = file.stream();
-        const decompressed = stream.pipeThrough(new DecompressionStream("gzip"));
-        const tee = decompressed.tee();
+        const tee = stream.tee();
         verifyDigestStream(tee[0], digest).then((ok) => {
             if (!ok) storage.layers.removeEntry(name).catch(() => {});
         }).catch(() => {
@@ -279,22 +279,24 @@ export async function writeCachedManifest(reference, manifest, options = {}) {
 }
 
 // Adapter consumed by `elements/oci.js`. Returns a function with the
-// same shape as the inline `fetchLayer` it replaces, but pulls gzip
-// bytes from OPFS when present and falls through to the network
-// otherwise.
+// same shape as the inline `fetchLayer` it replaces, but pulls the
+// raw network bytes from OPFS when present and falls through to the
+// network otherwise. The cache stores the on-the-wire bytes
+// (gzip-compressed when the registry sent gzip) so a hit is byte-
+// identical to the network response and never needs re-compression.
 export async function createLayerFetcher({ reference, fetchLayer, platform, root, limit }) {
     const storage = await ensureStorage(root);
     if (!storage) {
         return { fetchLayer, close: async () => {} };
     }
-    const stats = summarize(0, 0, limit);
     const wrapped = {
         async fetchLayer(digest) {
             const cached = await readLayerFromCache(digest, storage);
             if (cached) return cached;
-            const stream = await fetchLayer(digest);
-            const gzipBytes = await collectGzip(stream);
-            return writeLayerToCache(digest, gzipBytes, storage, limit);
+            const result = await fetchLayer(digest);
+            const bytes = result instanceof Uint8Array ? result : result.bytes;
+            await writeLayerToCache(digest, bytes, storage, limit);
+            return bytes;
         },
         async close() { /* nothing to release */ },
     };

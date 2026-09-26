@@ -33,7 +33,7 @@ export async function fetchOCIImage(reference, platform = "linux/amd64", proxyPr
         throw new Error(`OCI image ${reference} has no filesystem layers`);
     }
 
-    let fetchLayerFn = (digest, mediaType) => fetchLayer(session, digest, mediaType);
+    let fetchLayerFn = (digest, mediaType) => fetchLayerBytes(session, digest, mediaType);
     if (options.cache) {
         const { createLayerFetcher } = await import("./oci-cache.js");
         const fetcher = await createLayerFetcher({
@@ -41,31 +41,33 @@ export async function fetchOCIImage(reference, platform = "linux/amd64", proxyPr
             platform,
             root: options.root,
             limit: options.limit,
-            fetchLayer: (digest) => fetchLayer(session, digest),
+            fetchLayer: (digest) => fetchLayerBytes(session, digest),
         });
-        fetchLayerFn = (digest) => fetcher.fetchLayer(digest);
+        fetchLayerFn = (digest, mediaType) => fetcher.fetchLayer(digest, mediaType);
     }
-    return Promise.all(imageManifest.layers.map((layer) => fetchLayerWithDecompression(fetchLayerFn, layer, layer.mediaType)));
+    return Promise.all(imageManifest.layers.map((layer) => {
+        const layerMediaType = layer.mediaType || "application/vnd.oci.image.layer.v1.tar";
+        return fetchLayerWithDecompression(fetchLayerFn, layer.digest, layerMediaType);
+    }));
 }
 
-async function fetchLayerWithDecompression(fetchLayerFn, layer, mediaType) {
-    const stream = await fetchLayerFn(layer.digest, mediaType);
-    if (stream && typeof stream.pipeThrough === "function") {
-        if (mediaType && mediaType.includes("+gzip")) {
-            if (typeof DecompressionStream === "undefined") throw new Error("OCI gzip layers require DecompressionStream");
-            return stream.pipeThrough(new DecompressionStream("gzip"));
-        }
+async function fetchLayerWithDecompression(fetchLayerFn, digest, mediaType) {
+    if (shouldDecompressLayerMagic(mediaType) && typeof DecompressionStream === "undefined") {
+        throw new Error("OCI gzip layers require DecompressionStream");
+    }
+    const result = await fetchLayerFn(digest, mediaType);
+    // Result is always a ReadableStream of the on-the-wire layer bytes
+    // (gzip-compressed if the registry sent gzip). The cache stores the
+    // exact same bytes, so the consumer is the only one decompressing.
+    const stream = result instanceof Uint8Array ? new Blob([result]).stream() : result;
+    if (!shouldDecompressLayerMagic(mediaType)) {
         return stream;
     }
-    if (stream instanceof Uint8Array || stream instanceof ArrayBuffer) {
-        const bytes = stream instanceof ArrayBuffer ? new Uint8Array(stream) : stream;
-        if (mediaType && mediaType.includes("+gzip")) {
-            if (typeof DecompressionStream === "undefined") throw new Error("OCI gzip layers require DecompressionStream");
-            return new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-        }
-        return new Blob([bytes]).stream();
-    }
-    return stream;
+    return stream.pipeThrough(new DecompressionStream("gzip"));
+}
+
+function shouldDecompressLayerMagic(mediaType) {
+    return !!(mediaType && mediaType.includes("+gzip"));
 }
 
 // One bearer token per image pull: the first 401 kicks off the token
@@ -134,16 +136,17 @@ function selectManifest(manifest, platform) {
     return found;
 }
 
-async function fetchLayer(session, digest, mediaType = "application/vnd.oci.image.layer.v1.tar") {
-    const response = await session.fetch(`/v2/${session.image.repository}/blobs/${digest}`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    await verifyDigest(bytes, digest);
-    const stream = new Blob([bytes]).stream();
-    if (mediaType.includes("+gzip") || (bytes[0] === 0x1f && bytes[1] === 0x8b)) {
-        if (typeof DecompressionStream === "undefined") throw new Error("OCI gzip layers require DecompressionStream");
-        return stream.pipeThrough(new DecompressionStream("gzip"));
-    }
-    return stream;
+async function fetchLayerBytes(session, digest) {
+    // Returns the on-the-wire layer bytes (gzip-compressed when the
+    // registry sent gzip). The consumer is responsible for
+    // decompression because only it knows whether the cache is in
+    // play, and the OPFS layer cache stores the wire bytes verbatim.
+    return (async () => {
+        const response = await session.fetch(`/v2/${session.image.repository}/blobs/${digest}`);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        await verifyDigest(bytes, digest);
+        return bytes;
+    })();
 }
 
 async function verifyDigest(bytes, digest) {
