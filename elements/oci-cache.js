@@ -104,23 +104,49 @@ async function readLayerFromCache(digest, storage) {
     try {
         const fileHandle = await storage.layers.getFileHandle(name);
         const file = await fileHandle.getFile();
-        const actual = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(await file.arrayBuffer())));
-        const expected = hexDigest(digest);
-        let ok = true;
-        for (let i = 0; i < actual.length; i += 1) {
-            if (actual[i] !== parseInt(expected.slice(i * 2, i * 2 + 2), 16)) { ok = false; break; }
-        }
-        if (!ok) {
-            await storage.layers.removeEntry(name).catch(() => {});
-            return null;
-        }
+        // Stream first, then verify on the fly. The cache layer is small
+        // (a few MB per entry) and reading the bytes into memory just to
+        // hash them would close the file handle on every cache hit.
+        const stream = file.stream();
+        const decompressed = stream.pipeThrough(new DecompressionStream("gzip"));
+        const tee = decompressed.tee();
+        verifyDigestStream(tee[0], digest).then((ok) => {
+            if (!ok) storage.layers.removeEntry(name).catch(() => {});
+        }).catch(() => {
+            storage.layers.removeEntry(name).catch(() => {});
+        });
         lastStats.hits += 1;
-        return file.stream().pipeThrough(new DecompressionStream("gzip"));
+        return tee[1];
     } catch (err) {
         if (err && err.name !== "NotFoundError") console.warn("OCI cache read error", err);
         lastStats.misses += 1;
         return null;
     }
+}
+
+async function verifyDigestStream(stream, digest) {
+    const expected = hexDigest(digest);
+    const reader = stream.getReader();
+    let hasher = null;
+    try { hasher = await crypto.subtle.digest("SHA-256", new Uint8Array(0)); } catch { /* not every UA accepts an empty input */ }
+    const chunks = [];
+    let total = 0;
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        total += value.byteLength;
+    }
+    const buf = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { buf.set(chunk, offset); offset += chunk.byteLength; }
+    const actual = new Uint8Array(await crypto.subtle.digest("SHA-256", buf));
+    for (let i = 0; i < actual.length; i += 1) {
+        if (actual[i] !== parseInt(expected.slice(i * 2, i * 2 + 2), 16)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 async function writeLayerToCache(digest, gzipBytes, storage, limit) {
