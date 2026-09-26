@@ -5,21 +5,67 @@ const OCI_ACCEPT = [
     "application/vnd.docker.distribution.manifest.v2+json",
 ].join(", ");
 
-export async function fetchOCIImage(reference, platform = "linux/amd64", proxyPrefix = "") {
+export async function fetchOCIImage(reference, platform = "linux/amd64", proxyPrefix = "", options = {}) {
     const proxy = (url) => proxyPrefix ? `${proxyPrefix}${url}` : url;
     const image = parseReference(reference);
     const session = createRegistrySession(image, proxy);
     const headers = { Accept: OCI_ACCEPT };
-    const indexResponse = await session.fetch(`/v2/${image.repository}/manifests/${image.reference}`, headers);
-    const indexManifest = await indexResponse.json();
-    const selected = selectManifest(indexManifest, platform);
+
+    let manifestBody;
+    if (options.cache) {
+        const { readCachedManifest, writeCachedManifest } = await import("./oci-cache.js");
+        manifestBody = await readCachedManifest(reference, { root: options.root });
+    }
+    if (!manifestBody) {
+        const indexResponse = await session.fetch(`/v2/${image.repository}/manifests/${image.reference}`, headers);
+        manifestBody = await indexResponse.json();
+        if (options.cache) {
+            const { writeCachedManifest } = await import("./oci-cache.js");
+            await writeCachedManifest(reference, manifestBody, { root: options.root });
+        }
+    }
+
+    const selected = selectManifest(manifestBody, platform);
     const imageManifest = selected
         ? await (await session.fetch(`/v2/${image.repository}/manifests/${selected.digest}`, headers)).json()
-        : indexManifest;
+        : manifestBody;
     if (!Array.isArray(imageManifest.layers)) {
         throw new Error(`OCI image ${reference} has no filesystem layers`);
     }
-    return Promise.all(imageManifest.layers.map((layer) => fetchLayer(session, layer)));
+
+    let fetchLayerFn = (digest, mediaType) => fetchLayer(session, digest, mediaType);
+    if (options.cache) {
+        const { createLayerFetcher } = await import("./oci-cache.js");
+        const fetcher = await createLayerFetcher({
+            reference,
+            platform,
+            root: options.root,
+            limit: options.limit,
+            fetchLayer: (digest) => fetchLayer(session, digest),
+        });
+        fetchLayerFn = (digest) => fetcher.fetchLayer(digest);
+    }
+    return Promise.all(imageManifest.layers.map((layer) => fetchLayerWithDecompression(fetchLayerFn, layer, layer.mediaType)));
+}
+
+async function fetchLayerWithDecompression(fetchLayerFn, layer, mediaType) {
+    const stream = await fetchLayerFn(layer.digest, mediaType);
+    if (stream && typeof stream.pipeThrough === "function") {
+        if (mediaType && mediaType.includes("+gzip")) {
+            if (typeof DecompressionStream === "undefined") throw new Error("OCI gzip layers require DecompressionStream");
+            return stream.pipeThrough(new DecompressionStream("gzip"));
+        }
+        return stream;
+    }
+    if (stream instanceof Uint8Array || stream instanceof ArrayBuffer) {
+        const bytes = stream instanceof ArrayBuffer ? new Uint8Array(stream) : stream;
+        if (mediaType && mediaType.includes("+gzip")) {
+            if (typeof DecompressionStream === "undefined") throw new Error("OCI gzip layers require DecompressionStream");
+            return new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+        }
+        return new Blob([bytes]).stream();
+    }
+    return stream;
 }
 
 // One bearer token per image pull: the first 401 kicks off the token
@@ -88,12 +134,12 @@ function selectManifest(manifest, platform) {
     return found;
 }
 
-async function fetchLayer(session, layer) {
-    const response = await session.fetch(`/v2/${session.image.repository}/blobs/${layer.digest}`);
+async function fetchLayer(session, digest, mediaType = "application/vnd.oci.image.layer.v1.tar") {
+    const response = await session.fetch(`/v2/${session.image.repository}/blobs/${digest}`);
     const bytes = new Uint8Array(await response.arrayBuffer());
-    await verifyDigest(bytes, layer.digest);
+    await verifyDigest(bytes, digest);
     const stream = new Blob([bytes]).stream();
-    if (layer.mediaType.includes("+gzip") || (bytes[0] === 0x1f && bytes[1] === 0x8b)) {
+    if (mediaType.includes("+gzip") || (bytes[0] === 0x1f && bytes[1] === 0x8b)) {
         if (typeof DecompressionStream === "undefined") throw new Error("OCI gzip layers require DecompressionStream");
         return stream.pipeThrough(new DecompressionStream("gzip"));
     }
